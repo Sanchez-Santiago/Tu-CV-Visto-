@@ -13,7 +13,7 @@ export function unificarSesion(
   const opcionesToken: CookieOptions = {
     httpOnly: true,
     secure: esProduccion,
-    sameSite: 'lax',
+    sameSite: esProduccion ? 'none' : 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE,
   };
@@ -21,7 +21,7 @@ export function unificarSesion(
   const opcionesLogged: CookieOptions = {
     httpOnly: false,
     secure: esProduccion,
-    sameSite: 'lax',
+    sameSite: esProduccion ? 'none' : 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE,
   };
@@ -30,7 +30,16 @@ export function unificarSesion(
   res.cookie(LOGGED_COOKIE, '1', opcionesLogged);
 }
 
-export function cerrarSesion(res: Response): void {
-  res.clearCookie(TOKEN_COOKIE, { path: '/' });
-  res.clearCookie(LOGGED_COOKIE, { path: '/' });
+export function cerrarSesion(
+  res: Response,
+  esProduccion = process.env.NODE_ENV === 'production',
+): void {
+  const opciones: CookieOptions = {
+    path: '/',
+    sameSite: esProduccion ? 'none' : 'lax',
+    secure: esProduccion,
+  };
+
+  res.clearCookie(TOKEN_COOKIE, opciones);
+  res.clearCookie(LOGGED_COOKIE, opciones);
 }
