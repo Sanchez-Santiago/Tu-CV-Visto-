@@ -1,0 +1,586 @@
+import React, { useState } from "react";
+import {
+  RefreshCw,
+  Send,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Target,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  Sparkles,
+} from "lucide-react";
+import { Button } from "@/src/components/ui/Button";
+import { Modal } from "@/src/components/ui/Modal";
+import type { NavView } from "@/src/components/layout/Sidebar";
+import type {
+  ResumenSincronizacion,
+  TipoRespuestaDetectada,
+} from "@/src/lib/api/client";
+
+interface EstrategiaViewProps {
+  renovaciones: import("@/src/lib/api/client").RenovacionCandidata[];
+  revisiones: import("@/src/lib/api/client").RevisionRechazoCandidata[];
+  estadisticas: import("@/src/lib/api/client").EstadisticasEstrategia | null;
+  cargando: boolean;
+  error: string | null;
+  onSincronizar: (dias: number) => Promise<ResumenSincronizacion>;
+  onRenovar: (
+    items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
+  ) => Promise<unknown>;
+  onConfirmarRechazo: (postulacionId: number) => Promise<void>;
+  onNavigate: (view: NavView) => void;
+}
+
+const tipoRespuestaLabels: Record<TipoRespuestaDetectada, string> = {
+  rechazo: "Rechazo",
+  entrevista: "Entrevista",
+  novedad: "Novedad",
+  contacto: "Contacto",
+  otro: "Otro",
+};
+
+const tipoSugeridoLabels: Record<string, string> = {
+  consulta: "Consulta",
+  novedad: "Novedad",
+  recordatorio: "Recordatorio",
+  nuevo_proyecto: "Nuevo proyecto",
+  disponibilidad: "Disponibilidad",
+};
+
+export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
+  renovaciones,
+  revisiones,
+  estadisticas,
+  cargando,
+  error,
+  onSincronizar,
+  onRenovar,
+  onConfirmarRechazo,
+  onNavigate,
+}) => {
+  const [sincronizando, setSincronizando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [resumen, setResumen] = useState<ResumenSincronizacion | null>(null);
+  const [mensaje, setMensaje] = useState<{
+    tipo: "ok" | "err";
+    texto: string;
+  } | null>(null);
+
+  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
+  const [ediciones, setEdiciones] = useState<
+    Record<number, { asunto: string; cuerpo: string }>
+  >({});
+
+  const [confirmando, setConfirmando] = useState<number | null>(null);
+
+  const toggleSeleccion = (id: number) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleExpandido = (id: number) => {
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSincronizar = async () => {
+    setSincronizando(true);
+    setMensaje(null);
+    try {
+      const r = await onSincronizar(14);
+      setResumen(r);
+      setMensaje({
+        tipo: "ok",
+        texto: `Datos actualizados: ${r.importados} mails nuevos, ${r.yaExistentes} ya registrados, ${r.sinMatch} sin postulación asociada y ${r.estados_actualizados} estado(s) actualizado(s).`,
+      });
+    } catch (e) {
+      setMensaje({ tipo: "err", texto: mensajeError(e) });
+    } finally {
+      setSincronizando(false);
+    }
+  };
+
+  const handleRenovar = async () => {
+    setEnviando(true);
+    setMensaje(null);
+    try {
+      const items = renovaciones
+        .filter((r) => seleccionados.has(r.postulacion_id))
+        .map((r) => {
+          const edicion = ediciones[r.postulacion_id];
+          return {
+            postulacion_id: r.postulacion_id,
+            asunto: edicion?.asunto.trim() || undefined,
+            cuerpo: edicion?.cuerpo.trim() || undefined,
+          };
+        });
+      if (items.length === 0) {
+        setMensaje({ tipo: "err", texto: "Seleccioná al menos una renovación." });
+        return;
+      }
+      const resultado = await onRenovar(items);
+      const enviados =
+        typeof resultado === "object" && resultado !== null
+          ? Number((resultado as { enviados?: number }).enviados ?? 1)
+          : items.length;
+      setSeleccionados(new Set());
+      setMensaje({ tipo: "ok", texto: `${enviados} seguimiento(s) enviado(s) correctamente.` });
+    } catch (e) {
+      setMensaje({ tipo: "err", texto: mensajeError(e) });
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const handleConfirmarRechazo = async () => {
+    if (confirmando === null) return;
+    try {
+      await onConfirmarRechazo(confirmando);
+      setConfirmando(null);
+      setMensaje({ tipo: "ok", texto: "Rechazo confirmado: la postulación se cerró." });
+    } catch (e) {
+      setConfirmando(null);
+      setMensaje({ tipo: "err", texto: mensajeError(e) });
+    }
+  };
+
+  const maxMensual = Math.max(1, ...(estadisticas?.mails_por_mes.map((m) => m.enviados + m.recibidos) ?? [0]));
+
+  return (
+    <div className="space-y-6">
+      {/* Actions + message */}
+      {mensaje && (
+        <div
+          className={`flex items-start gap-3 rounded-xl p-4 border ${
+            mensaje.tipo === "ok"
+              ? "bg-[#22C55E]/[0.06] border-[#22C55E]/25"
+              : "bg-rose-500/[0.06] border-rose-500/25"
+          }`}
+        >
+          {mensaje.tipo === "ok" ? (
+            <CheckCircle2 className="w-5 h-5 text-[#22C55E] shrink-0" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+          )}
+          <p className="text-xs text-[#D6DCD8] leading-relaxed">{mensaje.texto}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-3 rounded-xl p-4 border border-rose-500/25 bg-rose-500/[0.06]">
+          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+          <p className="text-xs text-[#D6DCD8]">{error}</p>
+        </div>
+      )}
+
+      {/* Sincronizar Gmail */}
+      <div className="skeuo-surface p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[#F2F5F3] flex items-center gap-2">
+              <Inbox className="w-4 h-4 text-[#22C55E]" /> Sincronización con Gmail
+            </h3>
+            <p className="text-xs text-[#A7B0AA] mt-0.5">
+              Busca respuestas a tus postulaciones en la bandeja de entrada y las clasifica automáticamente.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            isLoading={sincronizando}
+            onClick={handleSincronizar}
+            leftIcon={<RefreshCw className="w-4 h-4 text-black" />}
+          >
+            {sincronizando ? "Actualizando..." : "Actualizar"}
+          </Button>
+        </div>
+
+        {resumen && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <Kpi label="Mails importados" value={resumen.importados} />
+            <Kpi label="Ya registrados" value={resumen.yaExistentes} />
+            <Kpi label="Sin asociar" value={resumen.sinMatch} warn={resumen.sinMatch > 0} />
+            <Kpi label="Estados actualizados" value={resumen.estados_actualizados} highlight={resumen.estados_actualizados > 0} />
+            <div className="skeuo-surface p-3 space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#A7B0AA]">
+                Clasificación
+              </span>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                {(Object.entries(resumen.resumen) as [TipoRespuestaDetectada, number][]).map(
+                  ([tipo, cantidad]) =>
+                    cantidad > 0 ? (
+                      <span key={tipo} className={`font-semibold ${tipo === "rechazo" ? "text-rose-400" : tipo === "entrevista" ? "text-[#22C55E]" : "text-[#D6DCD8]"}`}>
+                        {tipoRespuestaLabels[tipo]}: {cantidad}
+                      </span>
+                    ) : null,
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {resumen && resumen.detalle.length > 0 && (
+          <div className="space-y-2">
+            {resumen.detalle.slice(0, 8).map((d) => (
+              <div
+                key={`${d.postulacion_id}-${d.tipo_respuesta}-${d.fecha}`}
+                className="flex items-start gap-3 text-xs rounded-lg p-2.5 bg-[#101412] border border-[#232C28]"
+              >
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase shrink-0 ${
+                    d.tipo_respuesta === "rechazo"
+                      ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                      : d.tipo_respuesta === "entrevista"
+                        ? "bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30"
+                        : "bg-white/[0.04] text-[#A7B0AA] border border-white/[0.06]"
+                  }`}
+                >
+                  {tipoRespuestaLabels[d.tipo_respuesta]}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#F2F5F3]">
+                    {d.empresa}
+                    <span className="text-[#69736D] font-normal"> • {d.fecha}</span>
+                  </p>
+                  <p className="text-[#A7B0AA] line-clamp-1">{d.snippet}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Renovaciones */}
+      <div className="skeuo-surface p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[#F2F5F3] flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#22C55E]" /> Renovaciones sugeridas
+            </h3>
+            <p className="text-xs text-[#A7B0AA] mt-0.5">
+              Postulaciones vencidas que esperan respuesta. Editá la vista previa y enviá en lote.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            isLoading={enviando}
+            disabled={seleccionados.size === 0}
+            onClick={handleRenovar}
+            leftIcon={<Send className="w-4 h-4 text-black" />}
+          >
+            Enviar {seleccionados.size > 0 ? `${seleccionados.size} seleccionada(s)` : "seleccionadas"}
+          </Button>
+        </div>
+
+        {cargando ? (
+          <p className="text-xs text-[#69736D] animate-pulse">Cargando renovaciones...</p>
+        ) : renovaciones.length === 0 ? (
+          <div className="text-center py-10 space-y-2">
+            <Sparkles className="w-8 h-8 mx-auto text-[#69736D]" />
+            <p className="text-sm font-semibold text-[#F2F5F3]">Sin renovaciones pendientes</p>
+            <p className="text-xs text-[#A7B0AA]">
+              Todas tus postulaciones activas están dentro del plazo de contacto.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {renovaciones.map((r) => {
+              const expandido = expandidos.has(r.postulacion_id);
+              const edicion = ediciones[r.postulacion_id] ?? {
+                asunto: r.asunto_sugerido,
+                cuerpo: r.cuerpo_sugerido,
+              };
+              const sinDestino = !r.destinatario;
+              return (
+                <div
+                  key={r.postulacion_id}
+                  className={`rounded-xl border transition-colors ${
+                    sinDestino
+                      ? "border-amber-500/25 bg-amber-500/[0.03]"
+                      : "border-[#232C28] bg-[#101412]"
+                  }`}
+                >
+                  <div className="flex items-start gap-3 p-3.5">
+                    <input
+                      type="checkbox"
+                      checked={seleccionados.has(r.postulacion_id)}
+                      onChange={() => toggleSeleccion(r.postulacion_id)}
+                      disabled={sinDestino}
+                      className="accent-[#22C55E] w-4 h-4 mt-1 rounded cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-semibold text-[#F2F5F3]">{r.empresa}</h4>
+                        <span className="text-xs text-[#69736D]">—</span>
+                        <span className="text-xs text-[#A7B0AA]">{r.puesto}</span>
+                        <span className="text-[10px] font-medium uppercase px-2 py-0.5 rounded bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/25">
+                          {tipoSugeridoLabels[r.tipo_sugerido] ?? r.tipo_sugerido}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#69736D] mt-1">
+                        <span>
+                          Sin contacto: <strong className="text-amber-400">{r.dias_desde_ultimo_contacto} días</strong>
+                        </span>
+                        <span>Mails enviados: {r.cantidad_mails_enviados}</span>
+                        {r.destinatario && <span className="text-[#8A968F]">Destino: {r.destinatario}</span>}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandido(r.postulacion_id)}
+                      className="p-1.5 text-[#69736D] hover:text-[#F2F5F3] rounded-lg hover:bg-[#181D1B] transition-colors cursor-pointer"
+                      title={expandido ? "Contraer vista previa" : "Editar vista previa"}
+                    >
+                      {expandido ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {sinDestino && (
+                    <p className="px-3.5 pb-3 text-[11px] text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Sin destinatario: registrá un email enviado o un contacto RRHH.
+                    </p>
+                  )}
+
+                  {expandido && (
+                    <div className="px-3.5 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
+                      <div>
+                        <label className="text-[11px] font-medium text-[#A7B0AA]">Asunto</label>
+                        <input
+                          type="text"
+                          value={edicion.asunto}
+                          onChange={(e) =>
+                            setEdiciones((prev) => ({
+                              ...prev,
+                              [r.postulacion_id]: { ...edicion, asunto: e.target.value },
+                            }))
+                          }
+                          className="w-full mt-1 skeuo-input rounded-[10px] text-xs p-2.5 focus:outline-none placeholder:text-[#69736D]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-[#A7B0AA]">Cuerpo</label>
+                        <textarea
+                          rows={6}
+                          value={edicion.cuerpo}
+                          onChange={(e) =>
+                            setEdiciones((prev) => ({
+                              ...prev,
+                              [r.postulacion_id]: { ...edicion, cuerpo: e.target.value },
+                            }))
+                          }
+                          className="w-full mt-1 skeuo-input rounded-[10px] text-xs p-3 focus:outline-none placeholder:text-[#69736D] resize-y leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Rechazos detectados */}
+      <div className="skeuo-surface p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[#F2F5F3] flex items-center gap-2">
+            <XCircle className="w-4 h-4 text-rose-400" /> Rechazos detectados
+          </h3>
+          <p className="text-xs text-[#A7B0AA] mt-0.5">
+            Emails recibidos que parecen un rechazo. Confirmá para cerrar la postulación.
+          </p>
+        </div>
+
+        {revisiones.length === 0 ? (
+          <p className="text-xs text-[#69736D] py-2">No hay rechazos pendientes de confirmar.</p>
+        ) : (
+          <div className="space-y-2.5">
+            {revisiones.map((r) => (
+              <div
+                key={r.postulacion_id}
+                className="rounded-xl border border-rose-500/20 bg-rose-500/[0.03] p-3.5 flex flex-wrap items-start justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-[#F2F5F3]">{r.empresa}</h4>
+                    <span className="text-xs text-[#69736D]">—</span>
+                    <span className="text-xs text-[#A7B0AA]">{r.puesto}</span>
+                  </div>
+                  <p className="text-xs text-[#A7B0AA] mt-1 line-clamp-2">
+                    {r.asunto && <strong className="text-[#D6DCD8]">"{r.asunto}"</strong>}{" "}
+                    {r.snippet}
+                  </p>
+                  <p className="text-[11px] text-[#69736D] mt-1">Recibido: {r.fecha}</p>
+                </div>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setConfirmando(r.postulacion_id)}
+                  leftIcon={<XCircle className="w-3.5 h-3.5" />}
+                >
+                  Confirmar rechazo
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[11px] text-[#69736D]">
+          ¿Ves algo que no es un rechazo? Revisá la postulación en{" "}
+          <button
+            type="button"
+            className="text-[#22C55E] underline underline-offset-2 cursor-pointer"
+            onClick={() => onNavigate("postulaciones")}
+          >
+            Postulaciones
+          </button>
+          .
+        </p>
+      </div>
+
+      {/* Estadísticas rápidas */}
+      {estadisticas && (
+        <div className="skeuo-surface p-5 space-y-5">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-[#22C55E]" />
+            <h3 className="text-sm font-semibold text-[#F2F5F3]">Reporte de actividad</h3>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Kpi label="Mails enviados" value={estadisticas.mails_enviados} />
+            <Kpi label="Mails recibidos" value={estadisticas.mails_recibidos} />
+            <Kpi label="Respondidas" value={`${estadisticas.respondidas}/${estadisticas.total_postulaciones}`} />
+            <Kpi label="Tasa de respuesta" value={`${estadisticas.tasa_respuesta}%`} />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Kpi
+              label="Positivas (entrevista+)"
+              value={estadisticas.positivas}
+              color="text-[#22C55E]"
+            />
+            <Kpi label="Rechazadas" value={estadisticas.rechazadas} color="text-rose-400" />
+            <Kpi label="Enviados por mes" value="Ver abajo" />
+            <Kpi label="Envios por puesto" value="Ver abajo" />
+          </div>
+
+          {estadisticas.mails_por_mes.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-[#A7B0AA] uppercase tracking-wider">
+                Mails por mes
+              </h4>
+              <div className="space-y-2">
+                {estadisticas.mails_por_mes.map((m) => (
+                  <div key={m.mes} className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-[#D6DCD8] font-medium">{m.mes}</span>
+                      <span className="text-[#69736D]">
+                        {m.enviados} env. / {m.recibidos} rec.
+                      </span>
+                    </div>
+                    <div className="flex gap-1 h-2.5 rounded-full bg-[#101412] overflow-hidden border border-[#232C28]">
+                      <div
+                        className="bg-[#22C55E]"
+                        style={{ width: `${(m.enviados / maxMensual) * 100}%` }}
+                      />
+                      <div
+                        className="bg-sky-400"
+                        style={{ width: `${(m.recibidos / maxMensual) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {estadisticas.mails_por_puesto.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-[#A7B0AA] uppercase tracking-wider">
+                Esfuerzo por puesto
+              </h4>
+              <div className="space-y-1.5">
+                {estadisticas.mails_por_puesto.slice(0, 6).map((p) => (
+                  <div key={p.puesto} className="flex items-center justify-between text-xs">
+                    <span className="text-[#D6DCD8] truncate pr-3">{p.puesto}</span>
+                    <span className="text-[#69736D] shrink-0">
+                      {p.mails_enviados} mails • {p.respondidas}/{p.postulaciones} respondidas
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Confirm dialog rechezo */}
+      <Modal
+        isOpen={confirmando !== null}
+        onClose={() => setConfirmando(null)}
+        title="Confirmar rechazo"
+        description="Esta acción marcará la postulación como rechazada."
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-[#A7B0AA] leading-relaxed">
+            ¿Estás seguro? El estado cambiará a <strong className="text-[#F2F5F3]">rechazado</strong> y
+            dejará de aparecer en las renovaciones sugeridas.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmando(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={handleConfirmarRechazo}>
+              Confirmar rechazo
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+function mensajeError(e: unknown): string {
+  return e instanceof Error ? e.message : "Error desconocido";
+}
+
+function Kpi({
+  label,
+  value,
+  warn,
+  color,
+  highlight,
+}: {
+  label: string;
+  value: number | string;
+  warn?: boolean;
+  color?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="skeuo-surface p-3 space-y-1">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#A7B0AA]">
+        {label}
+      </span>
+      <p
+        className={`text-xl font-bold font-['Inter'] ${
+          color ?? (warn ? "text-amber-400" : highlight ? "text-sky-400" : "text-[#4ADE80]")
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}

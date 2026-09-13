@@ -141,3 +141,8 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# SQLite locales y bases de prueba
+*.db
+*.sqlite
+BackEnd/tests/.test-cvisto.db

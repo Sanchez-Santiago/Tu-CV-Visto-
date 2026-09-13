@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@theme {
+  --breakpoint-xs: 480px;
+}
+
+@layer base {
+  :root {
+    --bg-main: #080A09;
+    --bg-secondary: #0C0F0E;
+    --surface-base: #121614;
+    --surface-card: #141817;
+    --surface-elevated: #171C19;
+    --surface-elevated-2: #1C221F;
+    --primary-green: #22C55E;
+    --green-400: #4ADE80;
+    --green-500: #22C55E;
+    --green-600: #16A34A;
+    --green-700: #15803D;
+    --text-primary: #F2F5F3;
+    --text-secondary: #A7B0AA;
+    --text-muted: #69736D;
+  }
+
+  body {
+    background-color: #080A09;
+    color: #F2F5F3;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-image: radial-gradient(circle at 50% -10%, rgba(34, 197, 94, 0.04) 0%, transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+/* Modern Skeuomorphism - Depth over Decoration */
+
+/* Standard Card Surface: #141817, 16px radius, 1px subtle border, physical shadow with top highlight */
+.skeuo-surface {
+  background-color: #141817;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+/* Elevated Surface: #171C19, 16px radius, deeper physical shadow */
+.skeuo-surface-elevated {
+  background-color: #171C19;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+/* Interactive Card: gentle lift, top highlight, subtle green rim on hover */
+.skeuo-card-interactive {
+  background-color: #141817;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  transition: all 180ms ease-out;
+}
+
+.skeuo-card-interactive:hover {
+  background-color: #171C19;
+  border-color: rgba(255, 255, 255, 0.09);
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(34, 197, 94, 0.12);
+}
+
+/* Buttons: 10px radius, elevated physical click feel */
+.skeuo-button-primary {
+  background-color: #22C55E;
+  color: #080A09;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  box-shadow:
+    0 2px 8px rgba(34, 197, 94, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  font-weight: 600;
+  transition: all 160ms ease-out;
+}
+
+.skeuo-button-primary:hover {
+  background-color: #4ADE80;
+  box-shadow:
+    0 4px 14px rgba(34, 197, 94, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.skeuo-button-primary:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.skeuo-button-secondary {
+  background-color: #181D1B;
+  color: #F2F5F3;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  font-weight: 500;
+  transition: all 160ms ease-out;
+}
+
+.skeuo-button-secondary:hover {
+  background-color: #1C221F;
+  border-color: rgba(255, 255, 255, 0.09);
+  color: #FFFFFF;
+}
+
+.skeuo-button-secondary:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* Inputs: Sunken surface feel, 10-12px radius */
+.skeuo-input {
+  background-color: #0C0F0E;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 11px;
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.25),
+    0 1px 0 rgba(255, 255, 255, 0.02);
+  color: #F2F5F3;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.skeuo-input:focus {
+  outline: none;
+  border-color: rgba(34, 197, 94, 0.4);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(34, 197, 94, 0.35);
+}
+
+/* Modals: #171C19, 20px radius, physical surface */
+.skeuo-modal {
+  background-color: #171C19;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.32),
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Custom Scrollbar - Discrete and Dark */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080A09;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1C221F;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #28332D;
+}
+

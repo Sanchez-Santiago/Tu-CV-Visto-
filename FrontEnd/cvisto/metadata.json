@@ -1,0 +1,6 @@
+{
+  "name": "CVisto",
+  "description": "SaaS de gestión personal y seguimiento laboral con estética Digital Workspace, Bento Grid y skeuomorfismo moderno.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
