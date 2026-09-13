@@ -34,6 +34,26 @@ const tipoLabel: Record<TipoEmail, string> = {
   otro: "Otro",
 };
 
+const estadoLabel: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_proceso: "En proceso",
+  entrevista: "Entrevista",
+  oferta: "Oferta",
+  aceptado: "Aceptado",
+  rechazado: "Rechazado",
+  cancelado: "Cancelado",
+};
+
+const estadoColor: Record<string, string> = {
+  pendiente: "#FBBF24",
+  en_proceso: "#38BDF8",
+  entrevista: "#A78BFA",
+  oferta: "#2DD4BF",
+  aceptado: "#22C55E",
+  rechazado: "#FB7185",
+  cancelado: "#A8A29E",
+};
+
 const esHtml = (contenido: string | null | undefined): boolean => {
   const texto = (contenido ?? "").trim();
   if (!texto) return false;
@@ -273,10 +293,16 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
           visibles.map((item) => {
             const { empleo, p } = postInfo(item);
             const enviadoOk = item.enviado === 1;
+            const esPostulado = item.postulacionId !== null && p !== undefined;
+            const accento =
+              esPostulado && p ? estadoColor[p.estado] ?? "#22C55E" : null;
             return (
               <div
                 key={item.id}
-                className="p-4 rounded-xl skeuo-card-interactive flex items-start gap-4 cursor-pointer"
+                className={`p-4 rounded-xl skeuo-card-interactive flex items-start gap-4 cursor-pointer ${
+                  esPostulado ? "bg-[#101613]" : ""
+                }`}
+                style={accento ? { boxShadow: `inset 4px 0 0 ${accento}` } : undefined}
                 onClick={() => setSelectedEmail(item)}
                 role="button"
                 tabIndex={0}
@@ -286,17 +312,30 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
               >
                 <div
                   className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
-                    enviadoOk
-                      ? "bg-[#22C55E]/10 border-[#22C55E]/30 text-[#22C55E]"
-                      : "bg-[#181D1B] border-[#26312B] text-[#A7B0AA]"
+                    esPostulado && accento
+                      ? "bg-[#181D1B] text-[#4ADE80]"
+                      : enviadoOk
+                        ? "bg-[#22C55E]/10 border-[#22C55E]/30 text-[#22C55E]"
+                        : "bg-[#181D1B] border-[#26312B] text-[#A7B0AA]"
                   }`}
+                  style={
+                    esPostulado && accento
+                      ? { borderColor: accento, color: accento }
+                      : undefined
+                  }
                 >
-                  {enviadoOk ? <Send className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                  {esPostulado ? (
+                    <Briefcase className="w-4 h-4" />
+                  ) : enviadoOk ? (
+                    <Send className="w-4 h-4" />
+                  ) : (
+                    <Mail className="w-4 h-4" />
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-semibold text-[#F2F5F3] truncate">
+                    <h4 className={`text-sm truncate ${esPostulado ? "font-bold text-[#F2F5F3]" : "font-semibold text-[#F2F5F3]"}`}>
                       {item.asunto || "(Sin asunto)"}
                     </h4>
                     <span className="text-[10px] font-medium uppercase px-2 py-0.5 rounded bg-white/[0.04] text-[#A7B0AA] border border-white/[0.05]">
@@ -315,16 +354,46 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#A7B0AA] mt-1">
-                    {item.postulacionId === null ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase px-2 py-0.5 rounded border text-stone-400 bg-stone-500/10 border-stone-500/30">
-                        Sin asociar
-                      </span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#A7B0AA] mt-1">
+                    {esPostulado && p && accento ? (
+                      <>
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full text-black"
+                          style={{ background: accento }}
+                        >
+                          <Briefcase className="w-3 h-3" />
+                          Postulado
+                        </span>
+                        <span className="font-bold text-sm text-[#4ADE80]">
+                          {empleo}
+                        </span>
+                        <span className="font-medium text-sm text-[#F2F5F3]">
+                          {p.puesto}
+                        </span>
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                          style={{
+                            color: accento,
+                            borderColor: `${accento}55`,
+                            background: `${accento}1A`,
+                          }}
+                        >
+                          {estadoLabel[p.estado] ?? p.estado}
+                        </span>
+                      </>
                     ) : (
-                      <span className="font-semibold text-[#4ADE80]">{empleo}</span>
+                      <>
+                        {item.postulacionId === null ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase px-2 py-0.5 rounded border text-stone-400 bg-stone-500/10 border-stone-500/30">
+                            Sin asociar
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-[#A7B0AA]">{empleo}</span>
+                        )}
+                        {p && <span>•</span>}
+                        {p && <span>{p.puesto}</span>}
+                      </>
                     )}
-                    {p && <span>•</span>}
-                    {p && <span>{p.puesto}</span>}
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3 text-[#69736D]" />

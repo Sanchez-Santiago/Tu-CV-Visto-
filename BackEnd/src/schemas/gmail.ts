@@ -45,6 +45,12 @@ export const enviarGmailSchema = z.object({
     )
     .max(20, 'máximo 20 adjuntos por correo')
     .optional(),
+  firmas: z
+    .array(z.number().int().positive(), {
+      invalid_type_error: 'firmas debe ser un arreglo de ids',
+    })
+    .max(10, 'máximo 10 firmas por correo')
+    .optional(),
 });
 export type EnviarGmailInput = z.infer<typeof enviarGmailSchema>;
 

@@ -195,14 +195,53 @@ function envolverBase64(contenido: string): string {
   return limpio.match(/.{1,76}/g)?.join('\r\n') ?? '';
 }
 
-function construirMensajeRaw(input: {
-  destinatario: string;
-  asunto: string;
-  cuerpo: string;
-  cc?: string;
-}, adjuntos?: AdjuntoGmail[]): string {
+function escaparTextoPlano(cuerpo: string): string {
+  return cuerpo.replace(/\r?\n/g, '\r\n');
+}
+
+function escaparAtributo(texto: string): string {
+  return texto.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+const TEXTO_PLANO_PART = [
+  'Content-Type: text/plain; charset="UTF-8"',
+  'Content-Transfer-Encoding: 8bit',
+  '',
+];
+
+const HTML_PART = [
+  'Content-Type: text/html; charset="UTF-8"',
+  'Content-Transfer-Encoding: 8bit',
+  '',
+];
+
+export interface FirmaImagenGmail {
+  contentId: string;
+  mimeType: string;
+  contenidoBase64: string;
+}
+
+function construirMensajeRaw(
+  input: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+    html: string;
+    cc?: string;
+  },
+  adjuntos?: AdjuntoGmail[],
+  firmasImagenes?: FirmaImagenGmail[],
+): string {
   const asunto = input.asunto.replace(/[\r\n]+/g, ' ').trim();
-  const cuerpo = input.cuerpo.replace(/\r?\n/g, '\r\n');
+  const cuerpo = escaparTextoPlano(input.cuerpo);
+  const html = input.html.replace(/\r?\n/g, '\r\n');
 
   const cabecerasComunes = [
     `To: ${input.destinatario}`,
@@ -210,45 +249,96 @@ function construirMensajeRaw(input: {
     `Subject: ${asunto}`,
   ];
 
-  if (!adjuntos || adjuntos.length === 0) {
-    return [
-      ...cabecerasComunes,
-      'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset="UTF-8"',
-      'Content-Transfer-Encoding: 8bit',
-      '',
-      cuerpo,
-    ].join('\r\n');
-  }
+  const tieneAdjuntos = (adjuntos ?? []).length > 0;
+  const tieneImagenes = (firmasImagenes ?? []).length > 0;
 
-  const boundary = `----=_cvisto_${randomBytes(16).toString('hex')}`;
-  const partes = [
-    'MIME-Version: 1.0',
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+  const boundaryAlternativa = `----=_cvisto_alt_${randomBytes(8).toString('hex')}`;
+  const parteAlternativa = [
+    'Content-Type: multipart/alternative; boundary="' + boundaryAlternativa + '"',
     '',
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: 8bit',
-    '',
+    `--${boundaryAlternativa}`,
+    ...TEXTO_PLANO_PART,
     cuerpo,
+    `--${boundaryAlternativa}`,
+    ...HTML_PART,
+    html,
+    `--${boundaryAlternativa}--`,
   ];
 
-  for (let i = 0; i < adjuntos.length; i += 1) {
-    const adjunto = adjuntos[i] as AdjuntoGmail;
-    const nombre = encriptarNombreAdjunto(adjunto.nombre, i);
-    partes.push(
-      `--${boundary}`,
-      `Content-Type: ${adjunto.mimeType}; name="${nombre}"`,
-      `Content-Disposition: attachment; filename="${nombre}"`,
-      'Content-Transfer-Encoding: base64',
-      '',
-      envolverBase64(adjunto.contenidoBase64),
-    );
+  let cabeceraContenido: string;
+  let cuerpoMulti: string[];
+
+  if (!tieneAdjuntos && !tieneImagenes) {
+    cabeceraContenido = 'Content-Type: multipart/alternative; boundary="' + boundaryAlternativa + '"';
+    cuerpoMulti = [``, ...parteAlternativa.slice(1)];
+  } else if (tieneAdjuntos) {
+    const boundaryMixto = `----=_cvisto_mixed_${randomBytes(8).toString('hex')}`;
+    cabeceraContenido = 'Content-Type: multipart/mixed; boundary="' + boundaryMixto + '"';
+    cuerpoMulti = [`--${boundaryMixto}`];
+    if (tieneImagenes) {
+      const boundaryRelacionado = `----=_cvisto_related_${randomBytes(8).toString('hex')}`;
+      cuerpoMulti.push(
+        `Content-Type: multipart/related; boundary="${boundaryRelacionado}"`,
+        '',
+        `--${boundaryRelacionado}`,
+      );
+      for (const parte of parteAlternativa) {
+        cuerpoMulti.push(parte);
+      }
+      for (let i = 0; i < (firmasImagenes ?? []).length; i += 1) {
+        const firma = (firmasImagenes ?? [])[i] as FirmaImagenGmail;
+        cuerpoMulti.push(
+          `--${boundaryRelacionado}`,
+          `Content-Type: ${firma.mimeType}; name="firma-${i + 1}"`,
+          `Content-ID: <${firma.contentId}>`,
+          'Content-Disposition: inline; filename="firma-' + (i + 1) + '"',
+          'Content-Transfer-Encoding: base64',
+          '',
+          envolverBase64(firma.contenidoBase64),
+        );
+      }
+      cuerpoMulti.push(`--${boundaryRelacionado}--`);
+    } else {
+      for (const parte of parteAlternativa) {
+        cuerpoMulti.push(parte);
+      }
+    }
+    for (let i = 0; i < (adjuntos ?? []).length; i += 1) {
+      const adjunto = (adjuntos ?? [])[i] as AdjuntoGmail;
+      const nombre = encriptarNombreAdjunto(adjunto.nombre, i);
+      cuerpoMulti.push(
+        `--${boundaryMixto}`,
+        `Content-Type: ${adjunto.mimeType}; name="${nombre}"`,
+        `Content-Disposition: attachment; filename="${nombre}"`,
+        'Content-Transfer-Encoding: base64',
+        '',
+        envolverBase64(adjunto.contenidoBase64),
+      );
+    }
+    cuerpoMulti.push(`--${boundaryMixto}--`);
+  } else {
+    const boundaryRelacionado = `----=_cvisto_related_${randomBytes(8).toString('hex')}`;
+    cabeceraContenido = 'Content-Type: multipart/related; boundary="' + boundaryRelacionado + '"';
+    cuerpoMulti = [`--${boundaryRelacionado}`];
+    for (const parte of parteAlternativa) {
+      cuerpoMulti.push(parte);
+    }
+    for (let i = 0; i < (firmasImagenes ?? []).length; i += 1) {
+      const firma = (firmasImagenes ?? [])[i] as FirmaImagenGmail;
+      cuerpoMulti.push(
+        `--${boundaryRelacionado}`,
+        `Content-Type: ${firma.mimeType}; name="firma-${i + 1}"`,
+        `Content-ID: <${firma.contentId}>`,
+        'Content-Disposition: inline; filename="firma-' + (i + 1) + '"',
+        'Content-Transfer-Encoding: base64',
+        '',
+        envolverBase64(firma.contenidoBase64),
+      );
+    }
+    cuerpoMulti.push(`--${boundaryRelacionado}--`);
   }
 
-  partes.push(`--${boundary}--`);
-
-  return [...cabecerasComunes, ...partes].join('\r\n');
+  return [...cabecerasComunes, 'MIME-Version: 1.0', cabeceraContenido, ...cuerpoMulti].join('\r\n');
 }
 
 function cabecerasDeInteres(
@@ -305,11 +395,17 @@ export const GmailService = {
       destinatario: string;
       asunto: string;
       cuerpo: string;
+      html: string;
       cc?: string;
       adjuntos?: AdjuntoGmail[];
+      firmasImagenes?: FirmaImagenGmail[];
     },
   ): Promise<{ gmailMessageId: string; threadId: string; snippet: string }> {
-    const raw = construirMensajeRaw(input, input.adjuntos);
+    const raw = construirMensajeRaw(
+      input,
+      input.adjuntos,
+      input.firmasImagenes,
+    );
     const data = await requestGmail(usuarioId, '/messages/send', {
       method: 'POST',
       body: JSON.stringify({

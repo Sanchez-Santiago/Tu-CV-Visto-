@@ -6,6 +6,9 @@ export interface UsuarioRow {
   pais: string | null;
   provincia: string | null;
   cv: string | null;
+  telefono: string | null;
+  linkedin: string | null;
+  sitio_web: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +32,19 @@ export interface ProyectoRow {
   descripcion: string | null;
   tecnologias: string | null;
   url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FirmaRow {
+  id: number;
+  usuario_id: number;
+  nombre: string;
+  tipo: 'texto' | 'imagen';
+  contenido: string | null;
+  imagen_mime: string | null;
+  imagen_base64: string | null;
+  enlace: string | null;
   created_at: string;
   updated_at: string;
 }

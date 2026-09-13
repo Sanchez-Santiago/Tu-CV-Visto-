@@ -13,7 +13,12 @@ export const crearProyectoSchema = z.object({
   url: url.optional(),
 });
 
-export const actualizarProyectoSchema = crearProyectoSchema.partial();
+export const crearProyectoMeSchema = crearProyectoSchema.omit({
+  usuario_id: true,
+});
+export type CrearProyectoMeInput = z.infer<typeof crearProyectoMeSchema>;
+
+export const actualizarProyectoSchema = crearProyectoMeSchema.partial();
+export type ActualizarProyectoInput = z.infer<typeof actualizarProyectoSchema>;
 
 export type CrearProyectoInput = z.infer<typeof crearProyectoSchema>;
-export type ActualizarProyectoInput = z.infer<typeof actualizarProyectoSchema>;

@@ -15,6 +15,8 @@ import {
 
 export const usuariosRouter = Router();
 
+usuariosRouter.use(authMiddleware);
+
 usuariosRouter.put(
   '/me',
   authMiddleware,

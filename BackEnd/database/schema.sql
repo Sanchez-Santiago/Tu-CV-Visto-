@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
 
     cv TEXT,
 
+    telefono TEXT,
+    linkedin TEXT,
+    sitio_web TEXT,
+
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -63,6 +67,40 @@ CREATE TABLE IF NOT EXISTS proyectos (
     tecnologias TEXT,
 
     url TEXT,
+
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- FIRMAS DE EMAIL
+-- Firma de texto o imagen que se agrega al final de los correos
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS firmas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    usuario_id INTEGER NOT NULL,
+
+    nombre TEXT NOT NULL,
+
+    tipo TEXT NOT NULL
+        CHECK (tipo IN (
+            'texto',
+            'imagen'
+        )),
+
+    contenido TEXT,
+
+    imagen_mime TEXT,
+    imagen_base64 TEXT,
+
+    enlace TEXT,
 
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -393,6 +431,9 @@ ON experiencias_laborales(usuario_id);
 
 CREATE INDEX IF NOT EXISTS idx_proyectos_usuario
 ON proyectos(usuario_id);
+
+CREATE INDEX IF NOT EXISTS idx_firmas_usuario
+ON firmas(usuario_id);
 
 CREATE INDEX IF NOT EXISTS idx_usuario_categorias_usuario
 ON usuario_categorias(usuario_id);

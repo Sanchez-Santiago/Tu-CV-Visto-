@@ -32,6 +32,21 @@ const MIGRACIONES_COLUMNAS: MigracionColumna[] = [
     columna: 'cuerpo_html',
     ddl: 'ALTER TABLE emails ADD COLUMN cuerpo_html TEXT',
   },
+  {
+    tabla: 'usuarios',
+    columna: 'telefono',
+    ddl: 'ALTER TABLE usuarios ADD COLUMN telefono TEXT',
+  },
+  {
+    tabla: 'usuarios',
+    columna: 'linkedin',
+    ddl: 'ALTER TABLE usuarios ADD COLUMN linkedin TEXT',
+  },
+  {
+    tabla: 'usuarios',
+    columna: 'sitio_web',
+    ddl: 'ALTER TABLE usuarios ADD COLUMN sitio_web TEXT',
+  },
 ];
 
 export async function aplicarMigracionesColumnas(
@@ -51,6 +66,26 @@ export async function aplicarMigracionesColumnas(
 
   await emailsPostulacionIdNullable(client);
   await corregirHtmlLegacy(client);
+  await crearTablaFirmas(client);
+}
+
+export async function crearTablaFirmas(client: Client): Promise<void> {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS firmas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL,
+      nombre TEXT NOT NULL,
+      tipo TEXT NOT NULL CHECK (tipo IN ('texto', 'imagen')),
+      contenido TEXT,
+      imagen_mime TEXT,
+      imagen_base64 TEXT,
+      enlace TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_firmas_usuario ON firmas(usuario_id);
+  `);
 }
 
 async function corregirHtmlLegacy(client: Client): Promise<void> {

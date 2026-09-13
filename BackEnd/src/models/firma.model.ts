@@ -1,72 +1,74 @@
 import type { InValue } from '@libsql/client';
 import { db } from '../config/database';
-import type { ExperienciaRow } from '../types/models';
+import type { FirmaRow } from '../types/models';
 import type {
-  ActualizarExperienciaInput,
-  CrearExperienciaInput,
-} from '../schemas/experiencia';
+  ActualizarFirmaInput,
+  CrearFirmaMeInput,
+} from '../schemas/firma';
 
 const CAMPOS_ACTUALIZABLES = {
-  empresa: 'empresa',
-  puesto: 'puesto',
-  fecha_inicio: 'fecha_inicio',
-  fecha_fin: 'fecha_fin',
-  descripcion: 'descripcion',
+  nombre: 'nombre',
+  tipo: 'tipo',
+  contenido: 'contenido',
+  imagen_mime: 'imagen_mime',
+  imagen_base64: 'imagen_base64',
+  enlace: 'enlace',
 } as const;
 
 const SELECCION = `
-  SELECT id, usuario_id, empresa, puesto, fecha_inicio, fecha_fin,
-         descripcion, created_at, updated_at
-  FROM experiencias_laborales
+  SELECT id, usuario_id, nombre, tipo, contenido, imagen_mime,
+         imagen_base64, enlace, created_at, updated_at
+  FROM firmas
 `;
 
-export const ExperienciaModel = {
-  async listarPorUsuario(usuarioId: number): Promise<ExperienciaRow[]> {
+export const FirmaModel = {
+  async listarPorUsuario(usuarioId: number): Promise<FirmaRow[]> {
     const resultado = await db.execute({
       sql: `${SELECCION}
         WHERE usuario_id = ?
-        ORDER BY COALESCE(fecha_inicio, '') DESC, id DESC
+        ORDER BY id ASC
       `,
       args: [usuarioId],
     });
-    return resultado.rows as unknown as ExperienciaRow[];
+    return resultado.rows as unknown as FirmaRow[];
   },
 
-  async obtenerPorId(id: number): Promise<ExperienciaRow | null> {
+  async obtenerPorId(id: number): Promise<FirmaRow | null> {
     const resultado = await db.execute({
       sql: `${SELECCION} WHERE id = ?`,
       args: [id],
     });
-    return (resultado.rows[0] as unknown as ExperienciaRow) ?? null;
+    return (resultado.rows[0] as unknown as FirmaRow) ?? null;
   },
 
-  async crear(input: CrearExperienciaInput): Promise<ExperienciaRow> {
+  async crear(input: CrearFirmaMeInput & { usuario_id: number }): Promise<FirmaRow> {
     const resultado = await db.execute({
       sql: `
-        INSERT INTO experiencias_laborales
-          (usuario_id, empresa, puesto, fecha_inicio, fecha_fin, descripcion)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO firmas
+          (usuario_id, nombre, tipo, contenido, imagen_mime, imagen_base64, enlace)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         input.usuario_id,
-        input.empresa,
-        input.puesto,
-        input.fecha_inicio ?? null,
-        input.fecha_fin ?? null,
-        input.descripcion ?? null,
+        input.nombre,
+        input.tipo,
+        input.contenido ?? null,
+        input.imagen_mime ?? null,
+        input.imagen_base64 ?? null,
+        input.enlace ?? null,
       ],
     });
     const creada = await this.obtenerPorId(Number(resultado.lastInsertRowid));
     if (!creada) {
-      throw new Error('No se pudo recuperar la experiencia recién creada');
+      throw new Error('No se pudo recuperar la firma recién creada');
     }
     return creada;
   },
 
   async actualizar(
     id: number,
-    input: ActualizarExperienciaInput,
-  ): Promise<ExperienciaRow | null> {
+    input: ActualizarFirmaInput,
+  ): Promise<FirmaRow | null> {
     const sets: string[] = [];
     const args: InValue[] = [];
 
@@ -84,7 +86,7 @@ export const ExperienciaModel = {
 
     sets.push('updated_at = CURRENT_TIMESTAMP');
     const resultado = await db.execute({
-      sql: `UPDATE experiencias_laborales SET ${sets.join(', ')} WHERE id = ?`,
+      sql: `UPDATE firmas SET ${sets.join(', ')} WHERE id = ?`,
       args: [...args, id],
     });
 
@@ -96,7 +98,7 @@ export const ExperienciaModel = {
 
   async eliminar(id: number): Promise<boolean> {
     const resultado = await db.execute({
-      sql: 'DELETE FROM experiencias_laborales WHERE id = ?',
+      sql: 'DELETE FROM firmas WHERE id = ?',
       args: [id],
     });
     return resultado.rowsAffected > 0;

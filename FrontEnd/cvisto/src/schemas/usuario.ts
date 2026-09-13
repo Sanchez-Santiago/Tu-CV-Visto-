@@ -8,6 +8,9 @@ export const UsuarioSchema = z.object({
   pais: z.string().max(100).nullable().optional(),
   provincia: z.string().max(100).nullable().optional(),
   cv: z.string().max(2000).nullable().optional(),
+  telefono: z.string().max(60).nullable().optional(),
+  linkedin: z.string().url().nullable().optional(),
+  sitioWeb: z.string().url().nullable().optional(),
   createdAt: z.string().nullable().optional(),
   updatedAt: z.string().nullable().optional(),
 });

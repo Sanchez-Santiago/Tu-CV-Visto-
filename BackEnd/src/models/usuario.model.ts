@@ -10,6 +10,9 @@ const CAMPOS_ACTUALIZABLES = {
   pais: 'pais',
   provincia: 'provincia',
   cv: 'cv',
+  telefono: 'telefono',
+  linkedin: 'linkedin',
+  sitio_web: 'sitio_web',
 } as const;
 
 export const UsuarioModel = {
@@ -17,7 +20,7 @@ export const UsuarioModel = {
     const resultado = await db.execute({
       sql: `
         SELECT id, nombre, email, perfil, pais, provincia, cv,
-               created_at, updated_at
+               telefono, linkedin, sitio_web, created_at, updated_at
         FROM usuarios
         WHERE id = ?
       `,
@@ -30,7 +33,7 @@ export const UsuarioModel = {
     const resultado = await db.execute({
       sql: `
         SELECT id, nombre, email, perfil, pais, provincia, cv,
-               created_at, updated_at
+               telefono, linkedin, sitio_web, created_at, updated_at
         FROM usuarios
         WHERE LOWER(email) = LOWER(?)
       `,

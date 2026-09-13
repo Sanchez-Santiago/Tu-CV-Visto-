@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CategoriaController } from '../controllers/categoria.controller';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate, validateParams } from '../middlewares/validation.middleware';
 import { idParams } from '../schemas/common';
 import {
@@ -8,6 +9,8 @@ import {
 } from '../schemas/categoria';
 
 export const categoriasRouter = Router();
+
+categoriasRouter.use(authMiddleware);
 
 categoriasRouter.get('/', CategoriaController.listar);
 categoriasRouter.post(

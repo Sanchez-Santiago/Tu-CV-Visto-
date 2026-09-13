@@ -21,9 +21,14 @@ export const crearExperienciaSchema = z.object({
   descripcion: z.string().trim().max(2000).optional(),
 });
 
-export const actualizarExperienciaSchema = crearExperienciaSchema.partial();
+export const crearExperienciaMeSchema = crearExperienciaSchema.omit({
+  usuario_id: true,
+});
+export type CrearExperienciaMeInput = z.infer<typeof crearExperienciaMeSchema>;
 
-export type CrearExperienciaInput = z.infer<typeof crearExperienciaSchema>;
+export const actualizarExperienciaSchema = crearExperienciaMeSchema.partial();
 export type ActualizarExperienciaInput = z.infer<
   typeof actualizarExperienciaSchema
 >;
+
+export type CrearExperienciaInput = z.infer<typeof crearExperienciaSchema>;

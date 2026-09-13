@@ -5,9 +5,11 @@ import { db } from '../src/config/database';
 import { UsuarioModel } from '../src/models/usuario.model';
 import type { UsuarioRow } from '../src/types/models';
 import { resetTestDb } from './helpers/test-db';
+import { headersDe } from './helpers/auth';
 
 let usuario: UsuarioRow;
 let categoriaId: number;
+let authHeaders: { Authorization: string };
 
 beforeAll(async () => {
   await resetTestDb(db);
@@ -16,6 +18,8 @@ beforeAll(async () => {
     nombre: 'Santiago Sánchez',
     email: 'santiago@test.com',
   });
+
+  authHeaders = await headersDe(usuario.id, usuario.email, usuario.nombre);
 
   const fila = await db.execute(
     'SELECT id FROM categorias_trabajo ORDER BY id ASC LIMIT 1',
@@ -31,6 +35,7 @@ describe('usuario_categorias — POST /api/usuarios/:usuarioId/categorias', () =
   it('asigna una categoría a un usuario', async () => {
     const res = await request(app)
       .post(`/api/usuarios/${usuario.id}/categorias`)
+      .set(authHeaders)
       .send({ categoria_id: categoriaId });
     expect(res.status).toBe(201);
     expect(res.body.data.id).toBe(categoriaId);
@@ -39,6 +44,7 @@ describe('usuario_categorias — POST /api/usuarios/:usuarioId/categorias', () =
   it('rechaza asignar dos veces la misma categoría', async () => {
     const res = await request(app)
       .post(`/api/usuarios/${usuario.id}/categorias`)
+      .set(authHeaders)
       .send({ categoria_id: categoriaId });
     expect(res.status).toBe(409);
   });
@@ -46,6 +52,7 @@ describe('usuario_categorias — POST /api/usuarios/:usuarioId/categorias', () =
   it('responde 404 si el usuario no existe', async () => {
     const res = await request(app)
       .post('/api/usuarios/999999/categorias')
+      .set(authHeaders)
       .send({ categoria_id: categoriaId });
     expect(res.status).toBe(404);
   });
@@ -53,6 +60,7 @@ describe('usuario_categorias — POST /api/usuarios/:usuarioId/categorias', () =
   it('responde 404 si la categoría no existe', async () => {
     const res = await request(app)
       .post(`/api/usuarios/${usuario.id}/categorias`)
+      .set(authHeaders)
       .send({ categoria_id: 999999 });
     expect(res.status).toBe(404);
   });
@@ -60,13 +68,17 @@ describe('usuario_categorias — POST /api/usuarios/:usuarioId/categorias', () =
 
 describe('usuario_categorias — GET', () => {
   it('lista las categorías del usuario', async () => {
-    const res = await request(app).get(`/api/usuarios/${usuario.id}/categorias`);
+    const res = await request(app)
+      .get(`/api/usuarios/${usuario.id}/categorias`)
+      .set(authHeaders);
     expect(res.status).toBe(200);
     expect((res.body.data as unknown[]).length).toBe(1);
   });
 
   it('responde 404 si el usuario no existe', async () => {
-    const res = await request(app).get('/api/usuarios/999999/categorias');
+    const res = await request(app)
+      .get('/api/usuarios/999999/categorias')
+      .set(authHeaders);
     expect(res.status).toBe(404);
   });
 });
@@ -75,14 +87,14 @@ describe('usuario_categorias — DELETE', () => {
   it('quita una categoría asignada', async () => {
     const res = await request(app).delete(
       `/api/usuarios/${usuario.id}/categorias/${categoriaId}`,
-    );
+    ).set(authHeaders);
     expect(res.status).toBe(204);
   });
 
   it('responde 404 si la categoría no estaba asignada', async () => {
     const res = await request(app).delete(
       `/api/usuarios/${usuario.id}/categorias/${categoriaId}`,
-    );
+    ).set(authHeaders);
     expect(res.status).toBe(404);
   });
 });
