@@ -24,12 +24,15 @@ import { env } from './config/env';
 
 export const app = express();
 
+const frontendUrl = env.FRONTEND_URL.replace(/\/$/, '');
+
 app.use(
   cors({
-    origin: env.FRONTEND_URL || true,
+    origin: frontendUrl || true,
     credentials: true,
   }),
 );
+
 app.use(express.json({ limit: '25mb' }));
 app.use(cookieParser());
 app.use(loggerMiddleware);
