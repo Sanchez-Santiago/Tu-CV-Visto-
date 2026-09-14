@@ -108,17 +108,19 @@ function AppContent() {
     [contactos.data, error],
   );
 
-  // Guard: handle /auth/callback landing — read token from URL fragment
-  if (typeof window !== "undefined" && window.location.pathname === "/auth/callback") {
+  // Guard: handle OAuth callback landing — read token from URL fragment
+  // Aplica en cualquier ruta por si el redirect cae en "/" u otro path.
+  if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.hash.slice(1));
     const token = params.get("token");
     if (token) {
       sessionStorage.setItem("cvisto_token", token);
       console.info("[auth] token capturado del callback OAuth");
-    } else {
+      window.history.replaceState({}, "", "/");
+    } else if (window.location.pathname === "/auth/callback") {
       console.warn("[auth] /auth/callback sin token en el fragmento");
+      window.history.replaceState({}, "", "/");
     }
-    window.history.replaceState({}, "", "/");
   }
 
   if (auth.cargando) {
