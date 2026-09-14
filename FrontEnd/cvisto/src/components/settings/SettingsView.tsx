@@ -9,46 +9,25 @@ import {
   LogOut,
   Check,
   Plus,
-  Pencil,
-  Trash2,
   Palette,
-  Signature,
-  Briefcase,
-  FolderKanban,
-  Image as ImageIcon,
-  Type as TypeIcon,
-  Link as LinkIcon,
 } from "lucide-react";
 import type { Usuario } from "@/src/schemas/usuario";
 import type { Experiencia, ExperienciaSinId } from "@/src/schemas/experiencia";
 import type { Proyecto, ProyectoSinId } from "@/src/schemas/proyecto";
-import type { Firma, FirmaSinId, TipoFirma } from "@/src/schemas/firma";
-import type { Categoria } from "@/src/schemas/categoria";
+import type { Firma, FirmaSinId } from "@/src/schemas/firma";
 import { Button } from "@/src/components/ui/Button";
 import { Input } from "@/src/components/ui/Input";
-import { Select } from "@/src/components/ui/Select";
-import { Modal } from "@/src/components/ui/Modal";
 import { useToast } from "@/src/components/ui/Toast";
 import { useExperiencias } from "@/src/hooks/useExperiencias";
 import { useProyectos } from "@/src/hooks/useProyectos";
 import { useFirmas } from "@/src/hooks/useFirmas";
 import { useCategorias } from "@/src/hooks/useCategorias";
-
-export function formatearMesAnio(mes?: string | null): string {
-  if (!mes) return "Actualidad";
-  const [anio, m] = mes.split("-");
-  if (!anio || !m) return mes;
-  const nombreMes =
-    ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
-     "septiembre", "octubre", "noviembre", "diciembre"][Number(m) - 1] ?? m;
-  return `${nombreMes} ${anio}`;
-}
-
-function rangoMeses(inicio?: string | null, fin?: string | null): string {
-  const desde = formatearMesAnio(inicio ?? null);
-  const hasta = fin ? formatearMesAnio(fin) : "Actualidad";
-  return `${desde} — ${hasta}`;
-}
+import { ExperienciaFormModal } from "./ExperienciaFormModal";
+import { ProyectoFormModal } from "./ProyectoFormModal";
+import { FirmaFormModal } from "./FirmaFormModal";
+import { ExperienciaSection } from "./ExperienciaSection";
+import { ProyectosSection } from "./ProyectosSection";
+import { FirmasSection } from "./FirmasSection";
 
 interface SettingsViewProps {
   usuario: Usuario;
@@ -415,266 +394,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* Experiencia laboral */}
-      <div className="skeuo-surface p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#181D1B] border border-[#222A26] flex items-center justify-center text-[#22C55E]">
-              <Briefcase className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-[#F2F5F3]">
-                Experiencia laboral
-              </h3>
-              <p className="text-xs text-[#A7B0AA] mt-0.5">
-                Tu trayectoria profesional para tus postulaciones
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setEditingExperiencia(null);
-              setIsExperienciaModal(true);
-            }}
-            leftIcon={<Plus className="w-4 h-4 text-black" />}
-          >
-            Agregar
-          </Button>
-        </div>
-
-        {experiencias.data.length === 0 ? (
-          <p className="text-xs text-[#69736D] py-2">
-            Todavía no registraste experiencias laborales.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {experiencias.data.map((exp) => (
-              <div
-                key={exp.id}
-                className="flex items-start justify-between gap-3 p-3 rounded-lg bg-[#101412] border border-[#222A26]"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#F2F5F3]">
-                    {exp.puesto}
-                  </p>
-                  <p className="text-xs text-[#4ADE80]">{exp.empresa}</p>
-                  <p className="text-[11px] text-[#69736D] mt-0.5">
-                    {rangoMeses(exp.fechaInicio, exp.fechaFin)}
-                  </p>
-                  {exp.descripcion && (
-                    <p className="text-xs text-[#8A968F] mt-1 line-clamp-2">
-                      {exp.descripcion}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingExperiencia(exp);
-                      setIsExperienciaModal(true);
-                    }}
-                    className="p-2 text-[#69736D] hover:text-[#4ADE80] rounded-lg hover:bg-[#22C55E]/10 transition-colors cursor-pointer"
-                    title="Editar"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarExperiencia(exp.id)}
-                    className="p-2 text-[#69736D] hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ExperienciaSection
+        data={experiencias.data}
+        onAgregar={() => {
+          setEditingExperiencia(null);
+          setIsExperienciaModal(true);
+        }}
+        onEditar={(exp) => {
+          setEditingExperiencia(exp);
+          setIsExperienciaModal(true);
+        }}
+        onEliminar={handleEliminarExperiencia}
+      />
 
       {/* Proyectos */}
-      <div className="skeuo-surface p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#181D1B] border border-[#222A26] flex items-center justify-center text-[#22C55E]">
-              <FolderKanban className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-[#F2F5F3]">Proyectos</h3>
-              <p className="text-xs text-[#A7B0AA] mt-0.5">
-                Trabajos personales o freelance para mostrar
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setEditingProyecto(null);
-              setIsProyectoModal(true);
-            }}
-            leftIcon={<Plus className="w-4 h-4 text-black" />}
-          >
-            Agregar
-          </Button>
-        </div>
-
-        {proyectos.data.length === 0 ? (
-          <p className="text-xs text-[#69736D] py-2">
-            Todavía no registraste proyectos.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {proyectos.data.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-start justify-between gap-3 p-3 rounded-lg bg-[#101412] border border-[#222A26]"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#F2F5F3]">{p.nombre}</p>
-                  {p.descripcion && (
-                    <p className="text-xs text-[#8A968F] mt-0.5 line-clamp-2">
-                      {p.descripcion}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {(p.tecnologias ?? []).map((tec) => (
-                      <span
-                        key={tec}
-                        className="text-[10px] px-2 py-0.5 rounded bg-[#22C55E]/10 text-[#4ADE80] border border-[#22C55E]/20"
-                      >
-                        {tec}
-                      </span>
-                    ))}
-                  </div>
-                  {p.url && (
-                    <a
-                      href={p.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[11px] text-sky-400 underline mt-1 inline-block"
-                    >
-                      {p.url}
-                    </a>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingProyecto(p);
-                      setIsProyectoModal(true);
-                    }}
-                    className="p-2 text-[#69736D] hover:text-[#4ADE80] rounded-lg hover:bg-[#22C55E]/10 transition-colors cursor-pointer"
-                    title="Editar"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarProyecto(p.id)}
-                    className="p-2 text-[#69736D] hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ProyectosSection
+        data={proyectos.data}
+        onAgregar={() => {
+          setEditingProyecto(null);
+          setIsProyectoModal(true);
+        }}
+        onEditar={(p) => {
+          setEditingProyecto(p);
+          setIsProyectoModal(true);
+        }}
+        onEliminar={handleEliminarProyecto}
+      />
 
       {/* Firmas */}
-      <div className="skeuo-surface p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#181D1B] border border-[#222A26] flex items-center justify-center text-[#22C55E]">
-              <Signature className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-[#F2F5F3]">Firmas de email</h3>
-              <p className="text-xs text-[#A7B0AA] mt-0.5">
-                Texto o imagen con enlace para tus correos
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setEditingFirma(null);
-              setIsFirmaModal(true);
-            }}
-            leftIcon={<Plus className="w-4 h-4 text-black" />}
-          >
-            Nueva firma
-          </Button>
-        </div>
-
-        {firmas.data.length === 0 ? (
-          <p className="text-xs text-[#69736D] py-2">
-            Todavía no creaste firmas. Podés usarlas al redactar un email.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {firmas.data.map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#101412] border border-[#222A26]"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-[#181D1B] border border-[#222A26] flex items-center justify-center text-[#A7B0AA] shrink-0">
-                    {f.tipo === "imagen" ? (
-                      <ImageIcon className="w-4 h-4" />
-                    ) : (
-                      <TypeIcon className="w-4 h-4" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#F2F5F3]">{f.nombre}</p>
-                    <p className="text-[11px] text-[#69736D]">
-                      {f.tipo === "imagen" ? "Imagen" : "Texto"}
-                      {f.enlace && " · con enlace"}
-                    </p>
-                  </div>
-                  {f.tipo === "imagen" && f.imagenBase64 && (
-                    <img
-                      src={`data:${f.imagenMime ?? "image/png"};base64,${f.imagenBase64}`}
-                      alt={f.nombre}
-                      className="w-10 h-8 object-contain rounded border border-[#222A26]"
-                    />
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingFirma(f);
-                      setIsFirmaModal(true);
-                    }}
-                    className="p-2 text-[#69736D] hover:text-[#4ADE80] rounded-lg hover:bg-[#22C55E]/10 transition-colors cursor-pointer"
-                    title="Editar"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarFirma(f.id)}
-                    className="p-2 text-[#69736D] hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <FirmasSection
+        data={firmas.data}
+        onAgregar={() => {
+          setEditingFirma(null);
+          setIsFirmaModal(true);
+        }}
+        onEditar={(f) => {
+          setEditingFirma(f);
+          setIsFirmaModal(true);
+        }}
+        onEliminar={handleEliminarFirma}
+      />
 
       {/* Apariencia */}
       <div className="skeuo-surface p-6 space-y-4">
@@ -814,428 +573,5 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         onSubmit={(data) => handleCrearFirma(data, editingFirma?.id)}
       />
     </div>
-  );
-};
-
-interface ExperienciaFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  inicial: Experiencia | null;
-  onSubmit: (data: ExperienciaSinId) => Promise<void>;
-}
-
-const ExperienciaFormModal: React.FC<ExperienciaFormModalProps> = ({
-  isOpen,
-  onClose,
-  inicial,
-  onSubmit,
-}) => {
-  const [empresa, setEmpresa] = useState("");
-  const [puesto, setPuesto] = useState("");
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
-  const [trabajoActual, setTrabajoActual] = useState(false);
-  const [descripcion, setDescripcion] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setEmpresa(inicial?.empresa ?? "");
-      setPuesto(inicial?.puesto ?? "");
-      setFechaInicio(inicial?.fechaInicio ?? "");
-      setFechaFin(inicial?.fechaFin ?? "");
-      setTrabajoActual(!inicial?.fechaFin);
-      setDescripcion(inicial?.descripcion ?? "");
-      setGuardando(false);
-    }
-  }, [isOpen, inicial]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!empresa.trim() || !puesto.trim()) return;
-    setGuardando(true);
-    try {
-      await onSubmit({
-        empresa: empresa.trim(),
-        puesto: puesto.trim(),
-        fechaInicio: fechaInicio || null,
-        fechaFin: trabajoActual ? null : fechaFin || null,
-        descripcion: descripcion.trim() || null,
-      });
-      onClose();
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={inicial ? "Editar experiencia" : "Nueva experiencia"}
-      description="Registrá un puesto laboral para tu perfil."
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Empresa"
-          value={empresa}
-          onChange={(e) => setEmpresa(e.target.value)}
-          required
-        />
-        <Input
-          label="Puesto"
-          value={puesto}
-          onChange={(e) => setPuesto(e.target.value)}
-          required
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#A7B0AA]">Desde</label>
-            <input
-              type="month"
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              className="w-full skeuo-input rounded-lg text-sm px-3 py-2.5 focus:outline-none"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#A7B0AA]">Hasta</label>
-            <input
-              type="month"
-              value={trabajoActual ? "" : fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              disabled={trabajoActual}
-              className="w-full skeuo-input rounded-lg text-sm px-3 py-2.5 focus:outline-none disabled:opacity-40"
-            />
-          </div>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={trabajoActual}
-            onChange={(e) => setTrabajoActual(e.target.checked)}
-            className="accent-[#22C55E] w-4 h-4 rounded"
-          />
-          <span className="text-xs font-medium text-[#F2F5F3]">
-            Trabajo actual
-          </span>
-        </label>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-[#A7B0AA]">Descripción</label>
-          <textarea
-            rows={4}
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Responsabilidades, logros, stack utilizado..."
-            className="w-full skeuo-input rounded-lg text-sm p-3 focus:outline-none placeholder:text-[#69736D]"
-          />
-        </div>
-        <div className="pt-3 border-t border-white/[0.06] flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={guardando}
-            leftIcon={<Check className="w-4 h-4 text-black" />}
-          >
-            Guardar
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-};
-
-interface ProyectoFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  inicial: Proyecto | null;
-  onSubmit: (data: ProyectoSinId) => Promise<void>;
-}
-
-const ProyectoFormModal: React.FC<ProyectoFormModalProps> = ({
-  isOpen,
-  onClose,
-  inicial,
-  onSubmit,
-}) => {
-  const [nombre, setNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [tecnologias, setTecnologias] = useState("");
-  const [url, setUrl] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setNombre(inicial?.nombre ?? "");
-      setDescripcion(inicial?.descripcion ?? "");
-      setTecnologias((inicial?.tecnologias ?? []).join(", "));
-      setUrl(inicial?.url ?? "");
-      setGuardando(false);
-    }
-  }, [isOpen, inicial]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombre.trim()) return;
-    setGuardando(true);
-    try {
-      await onSubmit({
-        nombre: nombre.trim(),
-        descripcion: descripcion.trim() || null,
-        tecnologias: tecnologias
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
-        url: url.trim() || null,
-      });
-      onClose();
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={inicial ? "Editar proyecto" : "Nuevo proyecto"}
-      description="Agregá un proyecto a tu perfil profesional."
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Nombre"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          required
-        />
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-[#A7B0AA]">Descripción</label>
-          <textarea
-            rows={3}
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Qué hace el proyecto, tu rol, resultados..."
-            className="w-full skeuo-input rounded-lg text-sm p-3 focus:outline-none placeholder:text-[#69736D]"
-          />
-        </div>
-        <Input
-          label="Tecnologías"
-          value={tecnologias}
-          onChange={(e) => setTecnologias(e.target.value)}
-          placeholder="React, Node, SQL... (separadas por coma)"
-        />
-        <Input
-          label="URL"
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://github.com/usuario/proyecto"
-        />
-        <div className="pt-3 border-t border-white/[0.06] flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={guardando}
-            leftIcon={<Check className="w-4 h-4 text-black" />}
-          >
-            Guardar
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-};
-
-interface FirmaFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  inicial: Firma | null;
-  onSubmit: (data: FirmaSinId) => Promise<void>;
-}
-
-const FirmaFormModal: React.FC<FirmaFormModalProps> = ({
-  isOpen,
-  onClose,
-  inicial,
-  onSubmit,
-}) => {
-  const [nombre, setNombre] = useState("");
-  const [tipo, setTipo] = useState<TipoFirma>("texto");
-  const [contenido, setContenido] = useState("");
-  const [enlace, setEnlace] = useState("");
-  const [imagenMime, setImagenMime] = useState<string | null>(null);
-  const [imagenBase64, setImagenBase64] = useState<string | null>(null);
-  const [guardando, setGuardando] = useState(false);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setNombre(inicial?.nombre ?? "");
-      setTipo((inicial?.tipo as TipoFirma) ?? "texto");
-      setContenido(inicial?.contenido ?? "");
-      setEnlace(inicial?.enlace ?? "");
-      setImagenMime(inicial?.imagenMime ?? null);
-      setImagenBase64(inicial?.imagenBase64 ?? null);
-      setGuardando(false);
-    }
-  }, [isOpen, inicial]);
-
-  const handleImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const archivo = e.target.files?.[0];
-    if (!archivo) return;
-    if (!archivo.type.startsWith("image/")) {
-      window.alert("El archivo debe ser una imagen.");
-      e.target.value = "";
-      return;
-    }
-    if (archivo.size > 2 * 1024 * 1024) {
-      window.alert("La imagen no puede superar los 2 MB.");
-      e.target.value = "";
-      return;
-    }
-    const lector = new FileReader();
-    lector.onload = () => {
-      const dataUrl = lector.result as string;
-      setImagenMime(archivo.type);
-      setImagenBase64(dataUrl.split(",")[1] ?? "");
-    };
-    lector.readAsDataURL(archivo);
-    e.target.value = "";
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombre.trim()) return;
-    if (tipo === "imagen" && !imagenBase64) {
-      window.alert("Subí una imagen para la firma.");
-      return;
-    }
-    setGuardando(true);
-    try {
-      await onSubmit({
-        nombre: nombre.trim(),
-        tipo,
-        contenido: tipo === "texto" ? contenido.trim() : null,
-        imagenMime: tipo === "imagen" ? imagenMime : null,
-        imagenBase64: tipo === "imagen" ? imagenBase64 : null,
-        enlace: enlace.trim() || null,
-      });
-      onClose();
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={inicial ? "Editar firma" : "Nueva firma"}
-      description="La firma se agrega al final de tus emails."
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Nombre de la firma"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej: Profesional / Académica"
-          required
-        />
-
-        <Select
-          label="Tipo de firma"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value as TipoFirma)}
-          options={[
-            { value: "texto", label: "Solo texto" },
-            { value: "imagen", label: "Imagen (con enlace opcional)" },
-          ]}
-        />
-
-        {tipo === "texto" ? (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#A7B0AA]">
-              Contenido de la firma
-            </label>
-            <textarea
-              rows={3}
-              value={contenido}
-              onChange={(e) => setContenido(e.target.value)}
-              placeholder={
-                "Nombre\nPuesto — Empresa\nLinkedIn: tu-linkedin\nwww.tusitio.com"
-              }
-              className="w-full skeuo-input rounded-lg text-sm p-3 focus:outline-none placeholder:text-[#69736D]"
-            />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-[#A7B0AA]">
-                Imagen (PNG / JPG, hasta 2 MB)
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImagen}
-                className="w-full text-xs text-[#A7B0AA] file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-[#181D1B] file:text-[#F2F5F3] file:cursor-pointer cursor-pointer"
-              />
-              {imagenBase64 && (
-                <div className="p-3 rounded-lg bg-[#101412] border border-[#222A26] flex items-center gap-3">
-                  <img
-                    src={`data:${imagenMime ?? "image/png"};base64,${imagenBase64}`}
-                    alt="Vista previa de la firma"
-                    className="max-h-16 object-contain rounded border border-[#222A26]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImagenBase64(null);
-                      setImagenMime(null);
-                    }}
-                    className="text-[11px] text-rose-400 hover:underline cursor-pointer"
-                  >
-                    Quitar imagen
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-[#A7B0AA]">
-                Enlace al hacer clic (opcional)
-              </label>
-              <div className="relative">
-                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#69736D]" />
-                <input
-                  type="url"
-                  placeholder="https://tusitio.com"
-                  value={enlace}
-                  onChange={(e) => setEnlace(e.target.value)}
-                  className="w-full skeuo-input rounded-lg text-sm px-10 py-2.5 focus:outline-none placeholder:text-[#69736D]"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="pt-3 border-t border-white/[0.06] flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={guardando}
-            leftIcon={<Check className="w-4 h-4 text-black" />}
-          >
-            Guardar
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 };

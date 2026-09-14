@@ -5,6 +5,7 @@ import type { Empresa } from "@/src/schemas/empresa";
 import type { EstadoPostulacion } from "@/src/schemas/common";
 import { Badge } from "@/src/components/ui/Badge";
 import { nombreEmpresa } from "@/src/lib/nombres";
+import { OPCIONES_ESTADO } from "@/src/lib/estados";
 
 interface ApplicationCardProps {
   postulacion: Postulacion;
@@ -81,13 +82,11 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
           }
           className="bg-[#101412] text-[11px] text-[#A7B0AA] hover:text-[#F2F5F3] border border-[#232C28] rounded px-2 py-1 focus:outline-none focus:border-[#22C55E] cursor-pointer"
         >
-          <option value="pendiente">Pendiente</option>
-          <option value="en_proceso">En proceso</option>
-          <option value="entrevista">Entrevista</option>
-          <option value="oferta">Oferta</option>
-          <option value="aceptado">Aceptado</option>
-          <option value="rechazado">Rechazado</option>
-          <option value="cancelado">Cancelado</option>
+          {OPCIONES_ESTADO.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
         </select>
 
         <div className="flex items-center gap-1">

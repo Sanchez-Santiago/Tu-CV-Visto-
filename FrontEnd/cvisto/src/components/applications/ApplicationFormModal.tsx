@@ -12,6 +12,7 @@ import type {
   Modalidad,
 } from "@/src/schemas/common";
 import { Check, Briefcase } from "lucide-react";
+import { OPCIONES_ESTADO } from "@/src/lib/estados";
 
 interface ApplicationFormModalProps {
   isOpen: boolean;
@@ -205,15 +206,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
             label="Estado inicial"
             value={estado}
             onChange={(e) => setEstado(e.target.value as EstadoPostulacion)}
-            options={[
-              { value: "pendiente", label: "● Pendiente" },
-              { value: "en_proceso", label: "● En proceso" },
-              { value: "entrevista", label: "● Entrevista" },
-              { value: "oferta", label: "● Oferta" },
-              { value: "aceptado", label: "● Aceptado" },
-              { value: "rechazado", label: "● Rechazado" },
-              { value: "cancelado", label: "● Cancelado" },
-            ]}
+            options={OPCIONES_ESTADO}
           />
         </div>
 

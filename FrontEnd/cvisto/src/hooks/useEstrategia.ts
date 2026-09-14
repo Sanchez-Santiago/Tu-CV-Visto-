@@ -7,10 +7,7 @@ import {
   type ResumenSincronizacion,
   type RevisionRechazoCandidata,
 } from "@/src/lib/api/client";
-
-function mensajeError(e: unknown): string | null {
-  return e instanceof Error ? e.message : "Error desconocido";
-}
+import { mensajeError } from "@/src/lib/errores";
 
 export function useEstrategia() {
   const [renovaciones, setRenovaciones] = useState<RenovacionCandidata[]>([]);

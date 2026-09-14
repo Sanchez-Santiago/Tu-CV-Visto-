@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Send, Loader2, Paperclip, X, FileText } from "lucide-react";
+import { Send, Loader2, Paperclip, X, FileText, PenLine, ChevronDown } from "lucide-react";
 import type { Contacto } from "@/src/schemas/contacto";
+import type { Firma } from "@/src/schemas/firma";
 import type { AdjuntoEnviar } from "@/src/lib/api/client";
 import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
 import { Input } from "@/src/components/ui/Input";
+import { archivoABase64, dataUrlDeImagen } from "@/src/lib/archivos";
 
 const MAX_BYTES = 18 * 1024 * 1024;
 
@@ -13,12 +15,14 @@ interface ComposeEmailModalProps {
   onClose: () => void;
   prefill?: { destinatario: string; asunto: string; cuerpo: string };
   contactos?: Contacto[];
+  firmas?: Firma[];
   onEnviado: (input: {
     destinatario: string;
     asunto: string;
     cuerpo: string;
     cc?: string;
     adjuntos?: AdjuntoEnviar[];
+    firmaId?: number;
   }) => Promise<void>;
 }
 
@@ -35,6 +39,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
   onClose,
   prefill,
   contactos = [],
+  firmas = [],
   onEnviado,
 }) => {
   const [destinatario, setDestinatario] = useState("");
@@ -43,6 +48,8 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
   const [cuerpo, setCuerpo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [adjuntosLocales, setAdjuntosLocales] = useState<AdjuntoLocal[]>([]);
+  const [firmaId, setFirmaId] = useState<number | null>(null);
+  const [firmaMenuAbierto, setFirmaMenuAbierto] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
   const idCounter = useRef(0);
 
@@ -53,9 +60,14 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
       setAsunto(prefill?.asunto ?? "");
       setCuerpo(prefill?.cuerpo ?? "");
       setAdjuntosLocales([]);
+      setFirmaId(null);
+      setFirmaMenuAbierto(false);
       setEnviando(false);
     }
   }, [isOpen, prefill?.destinatario, prefill?.asunto, prefill?.cuerpo]);
+
+  const firmaSeleccionada =
+    firmas.find((f) => Number(f.id) === Number(firmaId)) ?? null;
 
   const sugerencias = (() => {
     if (!destinatario.trim()) return [];
@@ -74,7 +86,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
     setDestinatario(email);
   };
 
-  const handleArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -87,23 +99,25 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
         window.alert("Los archivos exceden el límite de 18 MB en total.");
         break;
       }
-      const lector = new FileReader();
-      lector.onload = () => {
-        const dataUrl = lector.result as string;
-        const base64 = dataUrl.split(",")[1] ?? "";
+      try {
+        const leido = await archivoABase64(
+          archivo,
+          `adjunto-${idCounter.current + 1}`,
+        );
         idCounter.current += 1;
         setAdjuntosLocales((prev) => [
           ...prev,
           {
             id: `${Date.now()}-${idCounter.current}`,
-            nombre: archivo.name || `adjunto-${idCounter.current}`,
-            contentType: archivo.type || "application/octet-stream",
-            base64,
-            size: archivo.size,
+            nombre: leido.nombre,
+            contentType: leido.contentType,
+            base64: leido.base64,
+            size: leido.size,
           },
         ]);
-      };
-      lector.readAsDataURL(archivo);
+      } catch {
+        console.warn("[compose] no se pudo leer archivo adjunto");
+      }
     }
 
     e.target.value = "";
@@ -137,6 +151,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
               contenidoBase64: a.base64,
             }))
           : undefined,
+        firmaId: firmaId ?? undefined,
       });
       onClose();
     } catch {
@@ -222,7 +237,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
               >
                 {adj.contentType.startsWith("image/") ? (
                   <img
-                    src={`data:${adj.contentType};base64,${adj.base64}`}
+                    src={dataUrlDeImagen(adj.contentType, adj.base64)}
                     alt={adj.nombre}
                     className="w-8 h-8 rounded object-cover"
                   />
@@ -247,6 +262,87 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
             ))}
           </div>
         )}
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-[#A7B0AA]">
+            Firma (opcional)
+          </label>
+          <div className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setFirmaMenuAbierto((v) => !v)}
+              disabled={enviando || firmas.length === 0}
+              leftIcon={<PenLine className="w-4 h-4" />}
+              rightIcon={<ChevronDown className="w-4 h-4" />}
+            >
+              {firmaSeleccionada
+                ? firmaSeleccionada.nombre
+                : firmas.length === 0
+                  ? "Sin firmas guardadas"
+                  : "Elegir firma"}
+            </Button>
+
+            {firmaMenuAbierto && firmas.length > 0 && (
+              <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-[#101412] border border-[#232C28] rounded-lg shadow-lg py-1 max-h-52 overflow-y-auto">
+                {firmas.map((f) => (
+                  <li key={f.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFirmaId(Number(f.id));
+                        setFirmaMenuAbierto(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 hover:bg-[#181D1B] text-xs cursor-pointer flex items-center gap-2 ${
+                        Number(f.id) === Number(firmaId)
+                          ? "bg-[#181D1B] text-[#4ADE80]"
+                          : "text-[#F2F5F3]"
+                      }`}
+                    >
+                      {f.tipo === "imagen" && f.imagenBase64 ? (
+                        <img
+                          src={dataUrlDeImagen(f.imagenMime, f.imagenBase64)}
+                          alt={f.nombre}
+                          className="w-8 h-8 rounded object-cover shrink-0"
+                        />
+                      ) : (
+                        <FileText className="w-4 h-4 text-[#69736D] shrink-0" />
+                      )}
+                      <span className="truncate">{f.nombre}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {firmaSeleccionada && (
+            <span className="inline-flex items-center gap-2 bg-[#181D1B] border border-[#232C28] rounded-lg px-3 py-1.5 text-xs text-[#F2F5F3] w-fit">
+              {firmaSeleccionada.tipo === "imagen" &&
+              firmaSeleccionada.imagenBase64 ? (
+                <img
+                  src={dataUrlDeImagen(firmaSeleccionada.imagenMime, firmaSeleccionada.imagenBase64)}
+                  alt={firmaSeleccionada.nombre}
+                  className="w-6 h-6 rounded object-cover"
+                />
+              ) : (
+                <FileText className="w-4 h-4 text-[#69736D]" />
+              )}
+              <span className="truncate">{firmaSeleccionada.nombre}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setFirmaId(null);
+                  setFirmaMenuAbierto(false);
+                }}
+                className="text-[#69736D] hover:text-rose-400 ml-1 cursor-pointer"
+                title="Quitar firma"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
+        </div>
 
         <div className="pt-3 border-t border-white/[0.06] flex justify-between items-center gap-2">
           <input

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Sparkles, Calendar, Inbox } from "lucide-react";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Email } from "@/src/schemas/email";
+import { aFechaLocalISO, aMesLocalISO } from "@/src/lib/fechas";
 
 interface ActivityChartProps {
   postulaciones: Postulacion[];
@@ -21,11 +22,6 @@ const MONTHS = [
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ];
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-const formatDay = (d: Date) =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
 const buildWeeklyData = (
   postulaciones: Postulacion[],
   emails: Email[],
@@ -34,7 +30,7 @@ const buildWeeklyData = (
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    days.push(formatDay(d));
+    days.push(aFechaLocalISO(d));
   }
   const daySet = new Set(days);
 
@@ -76,7 +72,7 @@ const buildMonthlyData = (
   const months: string[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`);
+    months.push(aMesLocalISO(d));
   }
   const monthSet = new Set(months);
 

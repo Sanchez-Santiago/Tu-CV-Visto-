@@ -10,6 +10,7 @@ import {
   Tag
 } from "lucide-react";
 import { EstadoPostulacion } from "@/src/types/schemas";
+import { ESTADO_LABELS } from "@/src/lib/estados";
 
 interface BadgeProps {
   estado?: EstadoPostulacion;
@@ -31,7 +32,7 @@ export const estadoConfig: Record<
   }
 > = {
   pendiente: {
-    label: "Pendiente",
+    label: ESTADO_LABELS.pendiente,
     dotColor: "bg-[#9CA3AF]",
     bgColor: "bg-white/[0.04]",
     borderColor: "border-white/[0.08]",
@@ -39,7 +40,7 @@ export const estadoConfig: Record<
     icon: <Clock className="w-3 h-3 text-[#9CA3AF]" />,
   },
   en_proceso: {
-    label: "En proceso",
+    label: ESTADO_LABELS.en_proceso,
     dotColor: "bg-[#60A5FA]",
     bgColor: "bg-[#60A5FA]/[0.08]",
     borderColor: "border-[#60A5FA]/25",
@@ -47,7 +48,7 @@ export const estadoConfig: Record<
     icon: <Activity className="w-3 h-3 text-[#60A5FA]" />,
   },
   entrevista: {
-    label: "Entrevista",
+    label: ESTADO_LABELS.entrevista,
     dotColor: "bg-[#A78BFA]",
     bgColor: "bg-[#A78BFA]/[0.08]",
     borderColor: "border-[#A78BFA]/25",
@@ -55,7 +56,7 @@ export const estadoConfig: Record<
     icon: <Video className="w-3 h-3 text-[#A78BFA]" />,
   },
   oferta: {
-    label: "Oferta",
+    label: ESTADO_LABELS.oferta,
     dotColor: "bg-[#FBBF24]",
     bgColor: "bg-[#FBBF24]/[0.08]",
     borderColor: "border-[#FBBF24]/25",
@@ -63,7 +64,7 @@ export const estadoConfig: Record<
     icon: <Sparkles className="w-3 h-3 text-[#FBBF24]" />,
   },
   aceptado: {
-    label: "Aceptado",
+    label: ESTADO_LABELS.aceptado,
     dotColor: "bg-[#22C55E]",
     bgColor: "bg-[#22C55E]/[0.08]",
     borderColor: "border-[#22C55E]/25",
@@ -71,7 +72,7 @@ export const estadoConfig: Record<
     icon: <CheckCircle2 className="w-3 h-3 text-[#22C55E]" />,
   },
   rechazado: {
-    label: "Rechazado",
+    label: ESTADO_LABELS.rechazado,
     dotColor: "bg-[#F87171]",
     bgColor: "bg-[#F87171]/[0.08]",
     borderColor: "border-[#F87171]/25",
@@ -79,7 +80,7 @@ export const estadoConfig: Record<
     icon: <XCircle className="w-3 h-3 text-[#F87171]" />,
   },
   cancelado: {
-    label: "Cancelado",
+    label: ESTADO_LABELS.cancelado,
     dotColor: "bg-[#6B7280]",
     bgColor: "bg-[#6B7280]/[0.06]",
     borderColor: "border-[#6B7280]/20",

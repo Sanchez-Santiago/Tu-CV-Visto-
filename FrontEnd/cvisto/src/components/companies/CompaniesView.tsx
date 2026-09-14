@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { MapPin, Plus, Search, Trash2, Layers, CalendarClock } from "lucide-react";
+import { MapPin, Plus, Trash2, Layers, CalendarClock } from "lucide-react";
 import type { Empresa, EmpresaSinId } from "@/src/schemas/empresa";
 import type { Modalidad } from "@/src/schemas/common";
 import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
 import { Input } from "@/src/components/ui/Input";
 import { Select } from "@/src/components/ui/Select";
+import { SectionHeader } from "@/src/components/ui/SectionHeader";
+import { SearchInput } from "@/src/components/ui/SearchInput";
 
 interface CompaniesViewProps {
   empresas: Empresa[];
@@ -68,36 +70,26 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#F2F5F3] font-['Inter']">
-            Empresas
-          </h2>
-          <p className="text-xs text-[#A7B0AA] mt-0.5">
-            Directorio de organizaciones y empleadores en tu radar
-          </p>
-        </div>
+      <SectionHeader
+        title="Empresas"
+        subtitle="Directorio de organizaciones y empleadores en tu radar"
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsModalOpen(true)}
+            leftIcon={<Plus className="w-4 h-4 text-black" />}
+          >
+            Nueva empresa
+          </Button>
+        }
+      />
 
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => setIsModalOpen(true)}
-          leftIcon={<Plus className="w-4 h-4 text-black" />}
-        >
-          Nueva empresa
-        </Button>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#69736D]" />
-        <input
-          type="text"
-          placeholder="Buscar empresa por nombre, país, provincia o ciudad..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#101412] border border-[#232C28] rounded-lg text-sm py-2.5 pl-10 pr-4 text-[#F2F5F3] placeholder:text-[#69736D] focus:outline-none focus:border-[#22C55E]/60 focus:ring-1 focus:ring-[#22C55E]/30 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar empresa por nombre, país, provincia o ciudad..."
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((item) => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Mail, Plus, Search, Trash2, Send, Clock, CheckCircle2, Briefcase, Reply, Forward, ChevronLeft, ChevronRight } from "lucide-react";
+import { Mail, Plus, Trash2, Send, Clock, CheckCircle2, Briefcase, Reply, Forward, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Email, EmailSinId } from "@/src/schemas/email";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
@@ -8,8 +8,18 @@ import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
 import { Input } from "@/src/components/ui/Input";
 import { Select } from "@/src/components/ui/Select";
+import { SectionHeader } from "@/src/components/ui/SectionHeader";
+import { SearchInput } from "@/src/components/ui/SearchInput";
+import { EmptyState } from "@/src/components/ui/EmptyState";
 import { nombreEmpresa } from "@/src/lib/nombres";
 import { armarPrefijoAsunto, textoSinHtml } from "@/src/lib/texto";
+import {
+  ESTADO_LABELS,
+  ESTADO_COLORS,
+  TIPO_EMAIL_LABELS,
+} from "@/src/lib/estados";
+import { postulacionVista } from "@/src/lib/postulaciones";
+import { fechaDia } from "@/src/lib/fechas";
 
 interface EmailsViewProps {
   emails: Email[];
@@ -26,33 +36,6 @@ interface EmailsViewProps {
 }
 
 const PAGINA_SIZE = 50;
-
-const tipoLabel: Record<TipoEmail, string> = {
-  postulacion: "Postulación",
-  seguimiento: "Seguimiento",
-  respuesta: "Respuesta",
-  otro: "Otro",
-};
-
-const estadoLabel: Record<string, string> = {
-  pendiente: "Pendiente",
-  en_proceso: "En proceso",
-  entrevista: "Entrevista",
-  oferta: "Oferta",
-  aceptado: "Aceptado",
-  rechazado: "Rechazado",
-  cancelado: "Cancelado",
-};
-
-const estadoColor: Record<string, string> = {
-  pendiente: "#FBBF24",
-  en_proceso: "#38BDF8",
-  entrevista: "#A78BFA",
-  oferta: "#2DD4BF",
-  aceptado: "#22C55E",
-  rechazado: "#FB7185",
-  cancelado: "#A8A29E",
-};
 
 const esHtml = (contenido: string | null | undefined): boolean => {
   const texto = (contenido ?? "").trim();
@@ -126,22 +109,16 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
   const [enviado, setEnviado] = useState<0 | 1>(1);
   const [contenidoResumen, setContenidoResumen] = useState("");
 
-  const postInfo = (e: Email) => {
-    if (e.postulacionId === null) {
-      return { p: undefined, empleo: "Sin asociar" };
-    }
-    const p = postulaciones.find((post) => Number(post.id) === Number(e.postulacionId));
-    const empleo = p ? nombreEmpresa(empresas, p.empresaId) : "(Postulación no encontrada)";
-    return { p, empleo };
-  };
+  const postInfo = (e: Email) =>
+    postulacionVista(e.postulacionId, postulaciones, empresas);
 
   const filtered = emails.filter((e) => {
     if (direccion === "recibidos" && e.enviado !== 0) return false;
     if (direccion === "enviados" && e.enviado !== 1) return false;
-    const fechaDia = (e.fecha ?? "").slice(0, 10);
-    if (desde && fechaDia < desde) return false;
-    if (hasta && fechaDia > hasta) return false;
-    const { empleo, p } = postInfo(e);
+    const dia = fechaDia(e.fecha);
+    if (desde && dia < desde) return false;
+    if (hasta && dia > hasta) return false;
+    const { empresa: empleo, postulacion: p } = postInfo(e);
     const termino = search.toLowerCase();
     return (
       (e.asunto ?? "").toLowerCase().includes(termino) ||
@@ -186,37 +163,28 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#F2F5F3] font-['Inter']">
-            Emails
-          </h2>
-          <p className="text-xs text-[#A7B0AA] mt-0.5">
-            Historial de correos enviados y recibidos por postulación
-          </p>
-        </div>
-
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => setIsModalOpen(true)}
-          leftIcon={<Plus className="w-4 h-4 text-black" />}
-        >
-          Registrar email
-        </Button>
-      </div>
+      <SectionHeader
+        title="Emails"
+        subtitle="Historial de correos enviados y recibidos por postulación"
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsModalOpen(true)}
+            leftIcon={<Plus className="w-4 h-4 text-black" />}
+          >
+            Registrar email
+          </Button>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#69736D]" />
-          <input
-            type="text"
-            placeholder="Buscar por asunto, empresa, puesto o dirección..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#101412] border border-[#232C28] rounded-lg text-sm py-2.5 pl-10 pr-4 text-[#F2F5F3] placeholder:text-[#69736D] focus:outline-none focus:border-[#22C55E]/60 focus:ring-1 focus:ring-[#22C55E]/30 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por asunto, empresa, puesto o dirección..."
+          className="flex-1"
+        />
 
         <div className="flex items-center gap-1 rounded-lg bg-[#101412] border border-[#232C28] p-1 shrink-0">
           {(
@@ -280,22 +248,19 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
 
       <div className="space-y-3">
         {sorted.length === 0 ? (
-          <div className="skeuo-surface p-12 text-center space-y-2">
-            <Mail className="w-10 h-10 mx-auto text-[#69736D]" />
-            <h3 className="text-base font-semibold text-[#F2F5F3]">
-              No hay emails registrados
-            </h3>
-            <p className="text-xs text-[#A7B0AA]">
-              Usá el botón "Actualizar" para sincronizar tu bandeja de Gmail, o registrá manualmente los correos por postulación.
-            </p>
-          </div>
+          <EmptyState
+            icon={<Mail className="w-10 h-10 mx-auto text-[#69736D]" />}
+            title="No hay emails registrados"
+            description='Usá el botón "Actualizar" para sincronizar tu bandeja de Gmail, o registrá manualmente los correos por postulación.'
+            compact
+          />
         ) : (
           visibles.map((item) => {
-            const { empleo, p } = postInfo(item);
+            const { empresa: empleo, postulacion: p } = postInfo(item);
             const enviadoOk = item.enviado === 1;
             const esPostulado = item.postulacionId !== null && p !== undefined;
             const accento =
-              esPostulado && p ? estadoColor[p.estado] ?? "#22C55E" : null;
+              esPostulado && p ? ESTADO_COLORS[p.estado] ?? "#22C55E" : null;
             return (
               <div
                 key={item.id}
@@ -339,7 +304,7 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
                       {item.asunto || "(Sin asunto)"}
                     </h4>
                     <span className="text-[10px] font-medium uppercase px-2 py-0.5 rounded bg-white/[0.04] text-[#A7B0AA] border border-white/[0.05]">
-                      {tipoLabel[item.tipo]}
+                      {TIPO_EMAIL_LABELS[item.tipo]}
                     </span>
                     <span
                       className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
@@ -378,7 +343,7 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
                             background: `${accento}1A`,
                           }}
                         >
-                          {estadoLabel[p.estado] ?? p.estado}
+                          {ESTADO_LABELS[p.estado] ?? p.estado}
                         </span>
                       </>
                     ) : (

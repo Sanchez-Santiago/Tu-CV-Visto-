@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { nombreEmpresa } from "@/src/lib/nombres";
+import { OPCIONES_ESTADO } from "@/src/lib/estados";
 import {
   DatosRegistroContacto,
   RegisterInteractionModal,
@@ -130,13 +131,11 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                 }
                 className="bg-[#141817] text-xs font-medium text-[#F2F5F3] border border-[#2B3530] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#22C55E] cursor-pointer"
               >
-                <option value="pendiente">● Pendiente</option>
-                <option value="en_proceso">● En proceso</option>
-                <option value="entrevista">● Entrevista</option>
-                <option value="oferta">● Oferta</option>
-                <option value="aceptado">● Aceptado</option>
-                <option value="rechazado">● Rechazado</option>
-                <option value="cancelado">● Cancelado</option>
+                {OPCIONES_ESTADO.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

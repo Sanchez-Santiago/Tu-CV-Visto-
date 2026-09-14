@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { Users2, Mail, Plus, Search, Trash2 } from "lucide-react";
+import { Users2, Mail, Plus, Trash2 } from "lucide-react";
 import type { Contacto, ContactoSinId } from "@/src/schemas/contacto";
 import type { Empresa } from "@/src/schemas/empresa";
 import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
 import { Input } from "@/src/components/ui/Input";
 import { Select } from "@/src/components/ui/Select";
+import { SectionHeader } from "@/src/components/ui/SectionHeader";
+import { SearchInput } from "@/src/components/ui/SearchInput";
 
 interface ContactsViewProps {
   contactos: Contacto[];
@@ -70,36 +72,26 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#F2F5F3] font-['Inter']">
-            Contactos
-          </h2>
-          <p className="text-xs text-[#A7B0AA] mt-0.5">
-            Reclutadores, managers y referentes de tus procesos de selección
-          </p>
-        </div>
+      <SectionHeader
+        title="Contactos"
+        subtitle="Reclutadores, managers y referentes de tus procesos de selección"
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsModalOpen(true)}
+            leftIcon={<Plus className="w-4 h-4 text-black" />}
+          >
+            Nuevo contacto
+          </Button>
+        }
+      />
 
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => setIsModalOpen(true)}
-          leftIcon={<Plus className="w-4 h-4 text-black" />}
-        >
-          Nuevo contacto
-        </Button>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#69736D]" />
-        <input
-          type="text"
-          placeholder="Buscar por nombre, email o cargo..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#101412] border border-[#232C28] rounded-lg text-sm py-2.5 pl-10 pr-4 text-[#F2F5F3] placeholder:text-[#69736D] focus:outline-none focus:border-[#22C55E]/60 focus:ring-1 focus:ring-[#22C55E]/30 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre, email o cargo..."
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((item) => (

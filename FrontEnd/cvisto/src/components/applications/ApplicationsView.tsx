@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from "react";
 import { 
-  Search, 
   Plus, 
   LayoutList, 
   LayoutGrid, 
@@ -11,6 +10,9 @@ import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
 import type { EstadoPostulacion } from "@/src/schemas/common";
 import { Button } from "@/src/components/ui/Button";
+import { SectionHeader } from "@/src/components/ui/SectionHeader";
+import { SearchInput } from "@/src/components/ui/SearchInput";
+import { EmptyState } from "@/src/components/ui/EmptyState";
 import { ApplicationTable } from "./ApplicationTable";
 import { ApplicationCard } from "./ApplicationCard";
 import { Badge } from "@/src/components/ui/Badge";
@@ -102,78 +104,68 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   return (
     <div className="space-y-5">
       {/* Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#F2F5F3] font-['Inter']">
-            Postulaciones
-          </h2>
-          <p className="text-xs text-[#A7B0AA] mt-0.5">
-            Gestioná cada etapa de tu proceso de selección laboral
-          </p>
-        </div>
+      <SectionHeader
+        title="Postulaciones"
+        subtitle="Gestioná cada etapa de tu proceso de selección laboral"
+        actions={
+          <>
+            {/* View switcher */}
+            <div className="flex items-center p-1 rounded-lg bg-[#101412] border border-[#232C28]">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded transition-all ${
+                  viewMode === "table"
+                    ? "bg-[#181D1B] text-[#22C55E] shadow-xs"
+                    : "text-[#69736D] hover:text-[#A7B0AA]"
+                }`}
+                title="Vista de Tabla"
+              >
+                <LayoutList className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("cards")}
+                className={`p-1.5 rounded transition-all ${
+                  viewMode === "cards"
+                    ? "bg-[#181D1B] text-[#22C55E] shadow-xs"
+                    : "text-[#69736D] hover:text-[#A7B0AA]"
+                }`}
+                title="Vista de Tarjetas"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className={`p-1.5 rounded transition-all ${
+                  viewMode === "kanban"
+                    ? "bg-[#181D1B] text-[#22C55E] shadow-xs"
+                    : "text-[#69736D] hover:text-[#A7B0AA]"
+                }`}
+                title="Tablero Kanban"
+              >
+                <Kanban className="w-4 h-4" />
+              </button>
+            </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
-          {/* View switcher */}
-          <div className="flex items-center p-1 rounded-lg bg-[#101412] border border-[#232C28]">
-            <button
-              onClick={() => setViewMode("table")}
-              className={`p-1.5 rounded transition-all ${
-                viewMode === "table"
-                  ? "bg-[#181D1B] text-[#22C55E] shadow-xs"
-                  : "text-[#69736D] hover:text-[#A7B0AA]"
-              }`}
-              title="Vista de Tabla"
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onOpenNewModal}
+              leftIcon={<Plus className="w-4 h-4 text-black" />}
             >
-              <LayoutList className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("cards")}
-              className={`p-1.5 rounded transition-all ${
-                viewMode === "cards"
-                  ? "bg-[#181D1B] text-[#22C55E] shadow-xs"
-                  : "text-[#69736D] hover:text-[#A7B0AA]"
-              }`}
-              title="Vista de Tarjetas"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("kanban")}
-              className={`p-1.5 rounded transition-all ${
-                viewMode === "kanban"
-                  ? "bg-[#181D1B] text-[#22C55E] shadow-xs"
-                  : "text-[#69736D] hover:text-[#A7B0AA]"
-              }`}
-              title="Tablero Kanban"
-            >
-              <Kanban className="w-4 h-4" />
-            </button>
-          </div>
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onOpenNewModal}
-            leftIcon={<Plus className="w-4 h-4 text-black" />}
-          >
-            Nueva
-          </Button>
-        </div>
-      </div>
+              Nueva
+            </Button>
+          </>
+        }
+      />
 
       {/* Search and Filters Section */}
       <div className="skeuo-surface p-4 space-y-3.5">
         {/* Search input */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#69736D]" />
-          <input
-            type="text"
-            placeholder="🔎 Buscar empresa o puesto..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-[#101412] border border-[#232C28] rounded-lg text-sm py-2.5 pl-10 pr-4 text-[#F2F5F3] placeholder:text-[#69736D] focus:outline-none focus:border-[#22C55E]/60 focus:ring-1 focus:ring-[#22C55E]/30 transition-all shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]"
-          />
-        </div>
+        <SearchInput
+          value={searchQuery}
+          onChange={onSearchChange}
+          placeholder="🔎 Buscar empresa o puesto..."
+        />
 
         {/* Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
@@ -207,27 +199,28 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
 
       {/* Main Content Area */}
       {filteredPostulaciones.length === 0 ? (
-        <div className="skeuo-surface p-12 text-center space-y-3">
-          <Briefcase className="w-10 h-10 mx-auto text-[#69736D]" />
-          <h3 className="text-base font-semibold text-[#F2F5F3]">
-            No se encontraron postulaciones
-          </h3>
-          <p className="text-xs text-[#A7B0AA] max-w-sm mx-auto">
-            {searchQuery
+        <EmptyState
+          icon={<Briefcase className="w-10 h-10 mx-auto text-[#69736D]" />}
+          title="No se encontraron postulaciones"
+          description={
+            searchQuery
               ? `No hay coincidencias para "${searchQuery}". Probá cambiando los términos de búsqueda.`
-              : "No hay postulaciones con el filtro seleccionado."}
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              onSearchChange("");
-              setSelectedStatus("todos");
-            }}
-          >
-            Limpiar filtros
-          </Button>
-        </div>
+              : "No hay postulaciones con el filtro seleccionado."
+          }
+          centered
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                onSearchChange("");
+                setSelectedStatus("todos");
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          }
+        />
       ) : viewMode === "kanban" ? (
         /* Kanban Board View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto pb-4">

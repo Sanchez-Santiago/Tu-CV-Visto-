@@ -13,6 +13,7 @@ import {
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Email } from "@/src/schemas/email";
 import type { EstadisticasEstrategia } from "@/src/lib/api/client";
+import { SectionHeader } from "@/src/components/ui/SectionHeader";
 
 interface AnalyticsViewProps {
   postulaciones: Postulacion[];
@@ -89,14 +90,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold tracking-tight text-[#F2F5F3] font-['Inter']">
-          Estadísticas & Conversión
-        </h2>
-        <p className="text-xs text-[#A7B0AA] mt-0.5">
-          Análisis cuantitativo de efectividad en tu búsqueda laboral
-        </p>
-      </div>
+      <SectionHeader
+        title="Estadísticas & Conversión"
+        subtitle="Análisis cuantitativo de efectividad en tu búsqueda laboral"
+      />
 
       {/* Top High-level KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

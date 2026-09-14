@@ -16,7 +16,11 @@ import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
 import type { TipoSeguimiento } from "@/src/schemas/common";
 import { Button } from "@/src/components/ui/Button";
+import { SectionHeader } from "@/src/components/ui/SectionHeader";
+import { EmptyState } from "@/src/components/ui/EmptyState";
 import { nombreEmpresa } from "@/src/lib/nombres";
+import { TIPO_SEGUIMIENTO_LABELS } from "@/src/lib/estados";
+import { postulacionVista } from "@/src/lib/postulaciones";
 
 interface FollowupsViewProps {
   seguimientos: Seguimiento[];
@@ -44,22 +48,7 @@ const getTipoIcon = (tipo: TipoSeguimiento) => {
   }
 };
 
-const getTipoLabel = (tipo: TipoSeguimiento) => {
-  switch (tipo) {
-    case "novedad":
-      return "Novedad de perfil";
-    case "nuevo_proyecto":
-      return "Nuevo proyecto / GitHub";
-    case "disponibilidad":
-      return "Disponibilidad";
-    case "recordatorio":
-      return "Cadencia de contacto";
-    case "consulta":
-      return "Consulta estratégica";
-    default:
-      return "Seguimiento";
-  }
-};
+const getTipoLabel = (tipo: TipoSeguimiento) => TIPO_SEGUIMIENTO_LABELS[tipo];
 
 export const FollowupsView: React.FC<FollowupsViewProps> = ({
   seguimientos,
@@ -71,11 +60,8 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 }) => {
   const [filter, setFilter] = useState<"pendientes" | "estrategicos" | "todas" | "enviados">("pendientes");
 
-  const postInfo = (f: Seguimiento) => {
-    const p = postulaciones.find((post) => Number(post.id) === Number(f.postulacionId));
-    const empresa = p ? nombreEmpresa(empresas, p.empresaId) : "(Postulación no encontrada)";
-    return { p, empresa };
-  };
+  const postInfo = (f: Seguimiento) =>
+    postulacionVista(f.postulacionId, postulaciones, empresas);
 
   const filtered = seguimientos.filter((s) => {
     if (filter === "pendientes") return s.enviado === 0;
@@ -90,25 +76,20 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#F2F5F3] font-['Inter'] flex items-center gap-2">
-            Seguimientos & Estrategia de Contacto
-          </h2>
-          <p className="text-xs text-[#A7B0AA] mt-0.5">
-            Mantené una relación periódica con empresas compartiendo valor, proyectos y disponibilidad
-          </p>
-        </div>
-
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onOpenNewTaskModal}
-          leftIcon={<Plus className="w-4 h-4 text-black" />}
-        >
-          Nuevo contacto / tarea
-        </Button>
-      </div>
+      <SectionHeader
+        title="Seguimientos & Estrategia de Contacto"
+        subtitle="Mantené una relación periódica con empresas compartiendo valor, proyectos y disponibilidad"
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onOpenNewTaskModal}
+            leftIcon={<Plus className="w-4 h-4 text-black" />}
+          >
+            Nuevo contacto / tarea
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2 p-1 rounded-xl bg-[#101412] border border-white/[0.06] w-fit">
         <button
@@ -162,15 +143,12 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="skeuo-surface p-12 text-center space-y-2">
-            <CheckCircle2 className="w-10 h-10 mx-auto text-[#22C55E]/50" />
-            <h3 className="text-base font-semibold text-[#F2F5F3]">
-              No hay tareas en esta vista
-            </h3>
-            <p className="text-xs text-[#A7B0AA]">
-              Agendá un nuevo contacto periódico o novedad para mantener presente tu postulación.
-            </p>
-          </div>
+          <EmptyState
+            icon={<CheckCircle2 className="w-10 h-10 mx-auto text-[#22C55E]/50" />}
+            title="No hay tareas en esta vista"
+            description="Agendá un nuevo contacto periódico o novedad para mantener presente tu postulación."
+            compact
+          />
         ) : (
           filtered.map((item) => {
             const { empresa } = postInfo(item);

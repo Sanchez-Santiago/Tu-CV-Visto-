@@ -4,6 +4,7 @@ import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
 import type { EstadoPostulacion } from "@/src/schemas/common";
 import { nombreEmpresa } from "@/src/lib/nombres";
+import { OPCIONES_ESTADO } from "@/src/lib/estados";
 
 interface ApplicationTableProps {
   postulaciones: Postulacion[];
@@ -80,13 +81,11 @@ export const ApplicationTable: React.FC<ApplicationTableProps> = ({
                       }
                       className="bg-[#101412] text-xs text-[#F2F5F3] border border-[#2A3530] rounded-lg px-2.5 py-1 focus:outline-none focus:border-[#22C55E] cursor-pointer"
                     >
-                      <option value="pendiente">● Pendiente</option>
-                      <option value="en_proceso">● En proceso</option>
-                      <option value="entrevista">● Entrevista</option>
-                      <option value="oferta">● Oferta</option>
-                      <option value="aceptado">● Aceptado</option>
-                      <option value="rechazado">● Rechazado</option>
-                      <option value="cancelado">● Cancelado</option>
+                      {OPCIONES_ESTADO.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </td>
 

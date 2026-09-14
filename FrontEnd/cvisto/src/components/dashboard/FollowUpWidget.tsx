@@ -3,7 +3,7 @@ import { CheckCircle2, Circle, Clock, ArrowRight, Plus } from "lucide-react";
 import type { Seguimiento } from "@/src/schemas/seguimiento";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
-import { nombreEmpresa } from "@/src/lib/nombres";
+import { postulacionVista } from "@/src/lib/postulaciones";
 
 interface FollowUpWidgetProps {
   seguimientos: Seguimiento[];
@@ -24,11 +24,11 @@ export const FollowUpWidget: React.FC<FollowUpWidgetProps> = ({
 }) => {
   const pending = seguimientos.filter((s) => s.enviado === 0).slice(0, 4);
 
-  const postInfo = (s: Seguimiento) => {
-    const p = postulaciones.find((post) => Number(post.id) === Number(s.postulacionId));
-    const empresa = p ? nombreEmpresa(empresas, p.empresaId) : "";
-    return { empresa };
-  };
+  const postInfo = (s: Seguimiento) =>
+    postulacionVista(s.postulacionId, postulaciones, empresas, {
+      sinAsociar: "",
+      noEncontrada: "",
+    });
 
   return (
     <div className="skeuo-surface p-5 sm:p-6 rounded-[16px] flex flex-col justify-between h-full">

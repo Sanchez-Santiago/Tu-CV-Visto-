@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { MailPlus } from "lucide-react";
 import { Sidebar, NavView } from "@/src/components/layout/Sidebar";
 import { Header } from "@/src/components/layout/Header";
@@ -12,13 +12,19 @@ import { useEmpresas } from "@/src/hooks/useEmpresas";
 import { useContactos } from "@/src/hooks/useContactos";
 import { useSeguimientos } from "@/src/hooks/useSeguimientos";
 import { useEmails } from "@/src/hooks/useEmails";
+import { useFirmas } from "@/src/hooks/useFirmas";
 import { useEstrategia } from "@/src/hooks/useEstrategia";
 
-import type {
-  Postulacion,
-  Usuario,
-  EstadoPostulacion,
-} from "@/src/types/schemas";
+// Action hooks
+import { useApplicationModals } from "@/src/hooks/useApplicationModals";
+import { useSeguimientosActions } from "@/src/hooks/useSeguimientosActions";
+import { useCompose } from "@/src/hooks/useCompose";
+import { useEmpresasActions } from "@/src/hooks/useEmpresasActions";
+import { useContactosActions } from "@/src/hooks/useContactosActions";
+import { useEmailsActions } from "@/src/hooks/useEmailsActions";
+import { useEstrategiaActions } from "@/src/hooks/useEstrategiaActions";
+
+import type { Usuario } from "@/src/types/schemas";
 
 // Views
 import { DashboardView } from "@/src/components/dashboard/DashboardView";
@@ -37,17 +43,9 @@ import { ApplicationDetailModal } from "@/src/components/applications/Applicatio
 import { FollowupFormModal } from "@/src/components/followups/FollowupFormModal";
 import { ComposeEmailModal } from "@/src/components/compose/ComposeEmailModal";
 
-import type { DatosRegistroContacto } from "@/src/components/applications/RegisterInteractionModal";
-import type {
-  PostulacionSinId,
-} from "@/src/schemas/postulacion";
-import type { EmpresaSinId } from "@/src/schemas/empresa";
-import type { Empresa } from "@/src/schemas/empresa";
-import type { ContactoSinId } from "@/src/schemas/contacto";
-import type { SeguimientoSinId } from "@/src/schemas/seguimiento";
-import type { Email, EmailSinId } from "@/src/schemas/email";
-import { nombreEmpresa, empresaIdDesdeDominio } from "@/src/lib/nombres";
-import { gmailApi, type AdjuntoEnviar } from "@/src/lib/api/client";
+import { VIEW_META } from "@/src/lib/navegacion";
+import { capturarTokenOAuth } from "@/src/lib/auth";
+import { exportarJson } from "@/src/lib/exportar";
 
 function AppContent() {
   const { success, error } = useToast();
@@ -58,70 +56,58 @@ function AppContent() {
   const contactos = useContactos();
   const seguimientos = useSeguimientos();
   const emails = useEmails();
+  const firmas = useFirmas();
   const estrategia = useEstrategia();
 
   // Navigation & UI state
   const [currentView, setCurrentView] = useState<NavView>("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
-  const [actualizandoGlobal, setActualizandoGlobal] = useState(false);
 
-  // Modal states
-  const [isAppFormOpen, setIsAppFormOpen] = useState(false);
-  const [editingApplication, setEditingApplication] = useState<Postulacion | null>(null);
-  const [selectedApplication, setSelectedApplication] = useState<Postulacion | null>(null);
-  const [appFormPrefill, setAppFormPrefill] = useState<{
-    empresaId?: number;
-    fechaPostulacion?: string;
-    fuente?: string;
-  } | null>(null);
-  const [appFormPrefillEmail, setAppFormPrefillEmail] = useState<Email | null>(null);
-
-  const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
-  const [followupPrefillPostulacionId, setFollowupPrefillPostulacionId] = useState("");
-
-  const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [composePrefill, setComposePrefill] = useState<{
-    destinatario: string;
-    asunto: string;
-    cuerpo: string;
-  }>({ destinatario: "", asunto: "", cuerpo: "" });
-
-  const handleComposeAlContacto = useCallback((email: string) => {
-    setComposePrefill({ destinatario: email, asunto: "", cuerpo: "" });
-    setIsComposeOpen(true);
-  }, []);
-
-  const handleComposeALaEmpresa = useCallback(
-    (empresa: Empresa) => {
-      const primerContacto = contactos.data.find(
-        (c) => Number(c.empresaId) === Number(empresa.id) && Boolean(c.email),
-      );
-      if (primerContacto) {
-        setComposePrefill({ destinatario: primerContacto.email, asunto: "", cuerpo: "" });
-      } else {
-        setComposePrefill({ destinatario: "", asunto: "", cuerpo: "" });
-        error(`La empresa "${empresa.nombre}" no tiene contactos con email`);
-      }
-      setIsComposeOpen(true);
-    },
-    [contactos.data, error],
-  );
+  // Action hooks
+  const apps = useApplicationModals({
+    crearPostulacion: postulaciones.crear,
+    actualizarPostulacion: postulaciones.actualizar,
+    eliminarPostulacion: postulaciones.eliminar,
+    cambiarEstadoPostulacion: postulaciones.cambiarEstado,
+    actualizarEmailPostulacion: emails.actualizar,
+    empresas: empresas.data,
+  });
+  const seguimientosActions = useSeguimientosActions({
+    crear: seguimientos.crear,
+    eliminar: seguimientos.eliminar,
+    alternarEnviado: seguimientos.alternarEnviado,
+    refrescar: seguimientos.refrescar,
+    registrarSeguimiento: postulaciones.registrarSeguimiento,
+  });
+  const compose = useCompose({
+    contactos: contactos.data,
+    refrescarEmails: emails.refrescar,
+  });
+  const empresasActions = useEmpresasActions({
+    crear: empresas.crear,
+    eliminar: empresas.eliminar,
+  });
+  const contactosActions = useContactosActions({
+    crear: contactos.crear,
+    eliminar: contactos.eliminar,
+  });
+  const emailsActions = useEmailsActions({
+    crear: emails.crear,
+    eliminar: emails.eliminar,
+  });
+  const estrategiaActions = useEstrategiaActions({
+    sincronizar: estrategia.sincronizar,
+    renovar: estrategia.renovar,
+    confirmarRechazo: estrategia.confirmarRechazo,
+    refrescarPostulaciones: postulaciones.refrescar,
+    refrescarEmails: emails.refrescar,
+    refrescarSeguimientos: seguimientos.refrescar,
+  });
 
   // Guard: handle OAuth callback landing — read token from URL fragment
   // Aplica en cualquier ruta por si el redirect cae en "/" u otro path.
-  if (typeof window !== "undefined") {
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const token = params.get("token");
-    if (token) {
-      sessionStorage.setItem("cvisto_token", token);
-      console.info("[auth] token capturado del callback OAuth");
-      window.history.replaceState({}, "", "/");
-    } else if (window.location.pathname === "/auth/callback") {
-      console.warn("[auth] /auth/callback sin token en el fragmento");
-      window.history.replaceState({}, "", "/");
-    }
-  }
+  capturarTokenOAuth();
 
   if (auth.cargando) {
     return (
@@ -139,211 +125,6 @@ function AppContent() {
   }
 
   const usuario = auth.usuario as Usuario;
-
-  // Handlers: mutations delegate to hooks
-  const handleSaveApplication = async (data: PostulacionSinId) => {
-    try {
-      if (editingApplication) {
-        const updated = await postulaciones.actualizar(editingApplication.id, data);
-        if (selectedApplication?.id === updated.id) {
-          setSelectedApplication(updated);
-        }
-        success(
-          `Postulación a ${nombreEmpresa(empresas.data, updated.empresaId)} actualizada`
-        );
-      } else {
-        const created = await postulaciones.crear(data);
-        if (appFormPrefillEmail) {
-          await emails.actualizar(appFormPrefillEmail.id, {
-            postulacionId: Number(created.id),
-          });
-          setAppFormPrefillEmail(null);
-          setAppFormPrefill(null);
-          success(
-            `Postulación a ${nombreEmpresa(empresas.data, created.empresaId)} registrada y email vinculado`
-          );
-        } else {
-          success(
-            `Postulación a ${nombreEmpresa(empresas.data, created.empresaId)} registrada exitosamente`
-          );
-        }
-      }
-    } catch (err) {
-      error("No se pudo guardar la postulación");
-      throw err;
-    }
-  };
-
-  const handleCrearPostulacionDesdeEmail = (email: Email) => {
-    setEditingApplication(null);
-    setAppFormPrefillEmail(email);
-    setAppFormPrefill({
-      empresaId: empresaIdDesdeDominio(empresas.data, email.remitente),
-      fechaPostulacion: email.fecha.slice(0, 10),
-      fuente: "Email",
-    });
-    setIsAppFormOpen(true);
-  };
-
-  const handleQuickStatusChange = async (id: string, newEstado: EstadoPostulacion) => {
-    try {
-      const updated = await postulaciones.cambiarEstado(id, newEstado);
-      if (selectedApplication?.id === id) {
-        setSelectedApplication(updated);
-      }
-      success(`Estado actualizado a "${newEstado.replace("_", " ")}"`);
-    } catch (err) {
-      error("Error al cambiar de estado");
-    }
-  };
-
-  const handleDeleteApplication = async (id: string) => {
-    try {
-      await postulaciones.eliminar(id);
-      if (selectedApplication?.id === id) {
-        setSelectedApplication(null);
-      }
-      success("Postulación eliminada del workspace");
-    } catch (err) {
-      error("No se pudo eliminar la postulación");
-    }
-  };
-
-  const handleToggleEnviado = async (id: string) => {
-    try {
-      const updated = await seguimientos.alternarEnviado(id);
-      success(
-        updated.enviado === 1 ? "Tarea marcada como enviada" : "Tarea reactivada"
-      );
-    } catch (err) {
-      error("Error al actualizar la tarea");
-    }
-  };
-
-  const handleCreateFollowup = async (data: SeguimientoSinId) => {
-    try {
-      await seguimientos.crear(data);
-      success("Nuevo seguimiento programado");
-    } catch (err) {
-      error("Error al crear seguimiento");
-    }
-  };
-
-  const handleDeleteFollowup = async (id: string) => {
-    try {
-      await seguimientos.eliminar(id);
-      success("Seguimiento eliminado");
-    } catch (err) {
-      error("Error al eliminar seguimiento");
-    }
-  };
-
-  const handleCreateEmpresa = async (data: EmpresaSinId) => {
-    try {
-      const created = await empresas.crear(data);
-      success(`Empresa ${created.nombre} agregada`);
-    } catch (err) {
-      error("Error al guardar empresa");
-    }
-  };
-
-  const handleDeleteEmpresa = async (id: string) => {
-    try {
-      await empresas.eliminar(id);
-      success("Empresa eliminada");
-    } catch (err) {
-      error("Error al eliminar empresa");
-    }
-  };
-
-  const handleCreateContacto = async (data: ContactoSinId) => {
-    try {
-      const created = await contactos.crear(data);
-      success(`Contacto ${created.nombre} guardado`);
-    } catch (err) {
-      error("Error al guardar contacto");
-    }
-  };
-
-  const handleDeleteContacto = async (id: string) => {
-    try {
-      await contactos.eliminar(id);
-      success("Contacto eliminado");
-    } catch (err) {
-      error("Error al eliminar contacto");
-    }
-  };
-
-  const handleCreateEmail = async (data: EmailSinId) => {
-    try {
-      await emails.crear(data);
-      success("Email registrado");
-    } catch (err) {
-      error("Error al registrar email");
-    }
-  };
-
-  const handleDeleteEmail = async (id: string) => {
-    try {
-      await emails.eliminar(id);
-      success("Email eliminado");
-    } catch (err) {
-      error("Error al eliminar email");
-    }
-  };
-
-  const handleEnviarCorreo = async (input: {
-    destinatario: string;
-    asunto: string;
-    cuerpo: string;
-    cc?: string;
-    adjuntos?: AdjuntoEnviar[];
-  }) => {
-    try {
-      await gmailApi.enviar({
-        destinatario: input.destinatario,
-        asunto: input.asunto,
-        cuerpo: input.cuerpo,
-        cc: input.cc,
-        adjuntos: input.adjuntos,
-        tipo: "seguimiento",
-      });
-      await emails.refrescar();
-      success(`Email enviado a ${input.destinatario}`);
-    } catch (err) {
-      error(err instanceof Error ? err.message : "Error al enviar el email");
-      throw err;
-    }
-  };
-
-  const handleComposeEmailPrefill = (prefill: {
-    destinatario: string;
-    asunto: string;
-    cuerpo: string;
-  }) => {
-    setComposePrefill(prefill);
-    setIsComposeOpen(true);
-  };
-
-  const handleSincronizarEstrategia = async (dias: number) => {
-    const resumen = await estrategia.sincronizar(dias);
-    await Promise.all([
-      postulaciones.refrescar(),
-      emails.refrescar(),
-      seguimientos.refrescar(),
-    ]);
-    return resumen;
-  };
-
-  const handleRenovarEstrategia = async (
-    items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
-  ) => {
-    return estrategia.renovar(items);
-  };
-
-  const handleConfirmarRechazoEstrategia = async (postulacionId: number) => {
-    await estrategia.confirmarRechazo(postulacionId);
-  };
 
   const handleUpdateUsuario = async (data: Partial<Usuario>) => {
     try {
@@ -369,99 +150,8 @@ function AppContent() {
       exportDate: new Date().toISOString(),
       app: "CVisto Digital Workspace",
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `cvisto-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportarJson("cvisto-backup", data);
     success("Backup descargado en formato JSON");
-  };
-
-  // Open task prefilled for a postulation
-  const handleAddFollowupForApp = (postulacionId: string) => {
-    setFollowupPrefillPostulacionId(postulacionId);
-    setIsFollowupModalOpen(true);
-  };
-
-  // Handler: Register strategic follow-up on a postulation
-  const handleRegisterSeguimiento = async (
-    postulacionId: string,
-    datos: DatosRegistroContacto,
-    diasCadenciaSugerida?: number
-  ) => {
-    try {
-      await postulaciones.registrarSeguimiento(
-        postulacionId,
-        datos,
-        diasCadenciaSugerida
-      );
-      await seguimientos.refrescar();
-      success("Contacto registrado y próximo contacto agendado");
-    } catch (err) {
-      error("Error al registrar el contacto");
-      throw err;
-    }
-  };
-
-  const handleActualizarGlobal = async () => {
-    if (actualizandoGlobal) return;
-    setActualizandoGlobal(true);
-    try {
-      const r = await handleSincronizarEstrategia(60);
-      success(
-        r.importados > 0 || r.estados_actualizados > 0
-          ? `Actualizado: ${r.importados} mails nuevos, ${r.estados_actualizados} estado(s) actualizado(s)`
-          : "Datos al día: sin cambios",
-      );
-    } catch (e) {
-      error(e instanceof Error ? e.message : "Error al actualizar");
-    } finally {
-      setActualizandoGlobal(false);
-    }
-  };
-
-  // View Titles
-  const viewMeta: Record<NavView, { title: string; subtitle?: string }> = {
-    dashboard: {
-      title: "Dashboard",
-      subtitle: "Vista general de postulaciones, métricas y agenda de hoy",
-    },
-    postulaciones: {
-      title: "Postulaciones",
-      subtitle: "Gestión de vacantes, empresas y entrevistas",
-    },
-    empresas: {
-      title: "Empresas",
-      subtitle: "Directorio de organizaciones y reclutadores",
-    },
-    contactos: {
-      title: "Contactos",
-      subtitle: "Red de reclutadores, hiring managers y referentes",
-    },
-    seguimientos: {
-      title: "Seguimientos & Agenda",
-      subtitle: "Próximos pasos, entrevistas técnicas y tareas",
-    },
-    emails: {
-      title: "Emails",
-      subtitle: "Historial de correos vinculados a tus postulaciones",
-    },
-    estrategia: {
-      title: "Estrategia & Seguimiento Automático",
-      subtitle: "Sincronizá Gmail, detectá respuestas y renová contactos en lote",
-    },
-    estadisticas: {
-      title: "Estadísticas & Conversión",
-      subtitle: "Métricas de efectividad y embudo de selección",
-    },
-    configuracion: {
-      title: "Configuración",
-      subtitle: "Ajustes de perfil, preferencias y copias de seguridad",
-    },
   };
 
   const pendingTasks = seguimientos.data.filter((s) => s.enviado === 0).length;
@@ -489,13 +179,10 @@ function AppContent() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
         <Header
-          title={viewMeta[currentView].title}
-          subtitle={viewMeta[currentView].subtitle}
+          title={VIEW_META[currentView].title}
+          subtitle={VIEW_META[currentView].subtitle}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          onOpenNewApplicationModal={() => {
-            setEditingApplication(null);
-            setIsAppFormOpen(true);
-          }}
+          onOpenNewApplicationModal={apps.abrirNuevo}
           searchQuery={globalSearch}
           onSearchChange={(q) => {
             setGlobalSearch(q);
@@ -505,8 +192,8 @@ function AppContent() {
           }}
           urgentFollowupsCount={pendingTasks}
           onQuickNavigateFollowups={() => setCurrentView("seguimientos")}
-          onActualizar={handleActualizarGlobal}
-          actualizando={actualizandoGlobal}
+          onActualizar={estrategiaActions.actualizarGlobal}
+          actualizando={estrategiaActions.actualizando}
         />
 
         {/* Scrollable Body */}
@@ -518,17 +205,11 @@ function AppContent() {
               emails={emails.data}
               seguimientos={seguimientos.data}
               empresas={empresas.data}
-              onToggleEnviado={handleToggleEnviado}
-              onSelectApplication={(p) => setSelectedApplication(p)}
+              onToggleEnviado={seguimientosActions.alternar}
+              onSelectApplication={apps.setSelectedApplication}
               onNavigate={(view) => setCurrentView(view)}
-              onOpenNewApplicationModal={() => {
-                setEditingApplication(null);
-                setIsAppFormOpen(true);
-              }}
-              onOpenNewFollowupModal={() => {
-                setFollowupPrefillPostulacionId("");
-                setIsFollowupModalOpen(true);
-              }}
+              onOpenNewApplicationModal={apps.abrirNuevo}
+              onOpenNewFollowupModal={seguimientosActions.abrirNuevaTarea}
             />
           )}
 
@@ -536,17 +217,11 @@ function AppContent() {
             <ApplicationsView
               postulaciones={postulaciones.data}
               empresas={empresas.data}
-              onSelectApplication={(p) => setSelectedApplication(p)}
-              onEditApplication={(p) => {
-                setEditingApplication(p);
-                setIsAppFormOpen(true);
-              }}
-              onDeleteApplication={handleDeleteApplication}
-              onQuickStatusChange={handleQuickStatusChange}
-              onOpenNewModal={() => {
-                setEditingApplication(null);
-                setIsAppFormOpen(true);
-              }}
+              onSelectApplication={apps.setSelectedApplication}
+              onEditApplication={apps.abrirEdicion}
+              onDeleteApplication={apps.eliminar}
+              onQuickStatusChange={apps.cambiarEstado}
+              onOpenNewModal={apps.abrirNuevo}
               searchQuery={globalSearch}
               onSearchChange={setGlobalSearch}
             />
@@ -555,13 +230,13 @@ function AppContent() {
           {currentView === "empresas" && (
             <CompaniesView
               empresas={empresas.data}
-              onCreateEmpresa={handleCreateEmpresa}
-              onDeleteEmpresa={handleDeleteEmpresa}
+              onCreateEmpresa={empresasActions.crear}
+              onDeleteEmpresa={empresasActions.eliminar}
               onFilterByCompany={(emp) => {
                 setGlobalSearch(emp);
                 setCurrentView("postulaciones");
               }}
-              onComposeToEmpresa={handleComposeALaEmpresa}
+              onComposeToEmpresa={compose.abrirComposeParaEmpresa}
             />
           )}
 
@@ -569,9 +244,9 @@ function AppContent() {
             <ContactsView
               contactos={contactos.data}
               empresas={empresas.data}
-              onCreateContacto={handleCreateContacto}
-              onDeleteContacto={handleDeleteContacto}
-              onComposeTo={handleComposeAlContacto}
+              onCreateContacto={contactosActions.crear}
+              onDeleteContacto={contactosActions.eliminar}
+              onComposeTo={compose.abrirComposeParaContacto}
             />
           )}
 
@@ -580,12 +255,9 @@ function AppContent() {
               seguimientos={seguimientos.data}
               postulaciones={postulaciones.data}
               empresas={empresas.data}
-              onToggleEnviado={handleToggleEnviado}
-              onDeleteFollowup={handleDeleteFollowup}
-              onOpenNewTaskModal={() => {
-                setFollowupPrefillPostulacionId("");
-                setIsFollowupModalOpen(true);
-              }}
+              onToggleEnviado={seguimientosActions.alternar}
+              onDeleteFollowup={seguimientosActions.eliminar}
+              onOpenNewTaskModal={seguimientosActions.abrirNuevaTarea}
             />
           )}
 
@@ -594,10 +266,10 @@ function AppContent() {
               emails={emails.data}
               postulaciones={postulaciones.data}
               empresas={empresas.data}
-              onCreateEmail={handleCreateEmail}
-              onDeleteEmail={handleDeleteEmail}
-              onCrearPostulacionDesdeEmail={handleCrearPostulacionDesdeEmail}
-              onComposeEmail={handleComposeEmailPrefill}
+              onCreateEmail={emailsActions.crear}
+              onDeleteEmail={emailsActions.eliminar}
+              onCrearPostulacionDesdeEmail={apps.crearDesdeEmail}
+              onComposeEmail={compose.abrirComposeConPrefill}
             />
           )}
 
@@ -608,9 +280,9 @@ function AppContent() {
               estadisticas={estrategia.estadisticas}
               cargando={estrategia.cargando}
               error={estrategia.error}
-              onSincronizar={handleSincronizarEstrategia}
-              onRenovar={handleRenovarEstrategia}
-              onConfirmarRechazo={handleConfirmarRechazoEstrategia}
+              onSincronizar={estrategiaActions.sincronizar}
+              onRenovar={estrategiaActions.renovar}
+              onConfirmarRechazo={estrategiaActions.confirmarRechazo}
               onNavigate={setCurrentView}
             />
           )}
@@ -637,37 +309,29 @@ function AppContent() {
 
       {/* Application Form Modal (Create / Edit) */}
       <ApplicationFormModal
-        isOpen={isAppFormOpen}
-        onClose={() => {
-          setIsAppFormOpen(false);
-          setEditingApplication(null);
-          setAppFormPrefill(null);
-          setAppFormPrefillEmail(null);
-        }}
-        onSubmit={handleSaveApplication}
-        initialData={editingApplication}
+        isOpen={apps.isAppFormOpen}
+        onClose={apps.cerrarForm}
+        onSubmit={apps.guardar}
+        initialData={apps.editingApplication}
         empresas={empresas.data}
-        prefill={appFormPrefill}
+        prefill={apps.appFormPrefill}
       />
 
       {/* Application Details Dossier Modal */}
       <ApplicationDetailModal
-        isOpen={Boolean(selectedApplication)}
-        onClose={() => setSelectedApplication(null)}
-        postulacion={selectedApplication}
-        onUpdateStatus={handleQuickStatusChange}
-        onEdit={(p) => {
-          setEditingApplication(p);
-          setIsAppFormOpen(true);
-        }}
-        onDelete={handleDeleteApplication}
-        onAddFollowup={handleAddFollowupForApp}
-        onRegisterInteraction={handleRegisterSeguimiento}
+        isOpen={Boolean(apps.selectedApplication)}
+        onClose={() => apps.setSelectedApplication(null)}
+        postulacion={apps.selectedApplication}
+        onUpdateStatus={apps.cambiarEstado}
+        onEdit={apps.abrirEdicion}
+        onDelete={apps.eliminar}
+        onAddFollowup={seguimientosActions.abrirTareaParaPostulacion}
+        onRegisterInteraction={seguimientosActions.registrar}
         empresas={empresas.data}
         linkedFollowups={
-          selectedApplication
+          apps.selectedApplication
             ? seguimientos.data.filter(
-                (s) => Number(s.postulacionId) === Number(selectedApplication.id)
+                (s) => Number(s.postulacionId) === Number(apps.selectedApplication.id)
               )
             : []
         }
@@ -675,33 +339,28 @@ function AppContent() {
 
       {/* Followup Task Modal */}
       <FollowupFormModal
-        isOpen={isFollowupModalOpen}
-        onClose={() => {
-          setIsFollowupModalOpen(false);
-          setFollowupPrefillPostulacionId("");
-        }}
-        onSubmit={handleCreateFollowup}
-        prefilledPostulacionId={followupPrefillPostulacionId}
+        isOpen={seguimientosActions.isFollowupModalOpen}
+        onClose={seguimientosActions.cerrarModal}
+        onSubmit={seguimientosActions.crear}
+        prefilledPostulacionId={seguimientosActions.followupPrefillPostulacionId}
         postulaciones={postulaciones.data}
         empresas={empresas.data}
       />
 
       {/* Compose Email Modal */}
       <ComposeEmailModal
-        isOpen={isComposeOpen}
-        onClose={() => setIsComposeOpen(false)}
-        prefill={composePrefill}
+        isOpen={compose.isComposeOpen}
+        onClose={compose.cerrarCompose}
+        prefill={compose.composePrefill}
         contactos={contactos.data}
-        onEnviado={handleEnviarCorreo}
+        firmas={firmas.data}
+        onEnviado={compose.enviarCorreo}
       />
 
       {/* Floating compose button */}
       <button
         type="button"
-        onClick={() => {
-          setComposePrefill({ destinatario: "", asunto: "", cuerpo: "" });
-          setIsComposeOpen(true);
-        }}
+        onClick={compose.abrirComposeVacio}
         title="Redactar email"
         aria-label="Redactar email"
         className="fixed bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-black shadow-[0_6px_18px_rgba(34,197,94,0.45)] hover:shadow-[0_8px_24px_rgba(34,197,94,0.6)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
