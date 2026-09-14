@@ -114,6 +114,9 @@ function AppContent() {
     const token = params.get("token");
     if (token) {
       sessionStorage.setItem("cvisto_token", token);
+      console.info("[auth] token capturado del callback OAuth");
+    } else {
+      console.warn("[auth] /auth/callback sin token en el fragmento");
     }
     window.history.replaceState({}, "", "/");
   }

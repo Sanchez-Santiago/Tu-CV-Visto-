@@ -70,7 +70,7 @@ export async function aplicarMigracionesColumnas(
 }
 
 export async function crearTablaFirmas(client: Client): Promise<void> {
-  await client.execute(`
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS firmas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       usuario_id INTEGER NOT NULL,

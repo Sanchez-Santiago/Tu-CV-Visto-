@@ -89,11 +89,11 @@ const GRUPOS: Grupo[] = [
           'el usuario, guarda los tokens en <code>cuentas_google</code> y setea las cookies de sesión.',
         params: [
           { nombre: 'code', tipo: 'string', donde: 'query', requerido: true, descripcion: 'Código de autorización de Google' },
-          { nombre: 'redirect', tipo: 'string', donde: 'query', requerido: false, descripcion: 'Destino posterior (debe empezar con FRONTEND_URL; se ignora con PANTALLA_BETA)' },
+          { nombre: 'redirect', tipo: 'string', donde: 'query', requerido: false, descripcion: 'Destino posterior (debe empezar con FRONTEND_URL)' },
         ],
         respuestas: [
-          { status: 200, descripcion: 'Con PANTALLA_BETA=true renderiza la pantalla de "fase de prueba" (HTML)' },
-          { status: 302, descripcion: 'Con PANTALLA_BETA=false redirige a FRONTEND_URL/auth/callback' },
+          { status: 200, descripcion: 'Sin FRONTEND_URL configurada renderiza la pantalla de "fase de prueba" (HTML)' },
+          { status: 302, descripcion: 'Con FRONTEND_URL configurada redirige a FRONTEND_URL/auth/callback#token=...' },
           { status: 400, descripcion: 'Falta el parámetro code' },
           { status: 401, descripcion: 'Código de Google inválido o expirado' },
         ],

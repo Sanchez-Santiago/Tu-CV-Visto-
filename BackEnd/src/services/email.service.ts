@@ -7,6 +7,7 @@ import { UsuarioModel } from '../models/usuario.model';
 import type { EmailRow } from '../types/models';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { AgendaService } from './agenda.service';
+import { FirmaService } from './firma.service';
 import { GmailService } from './gmail.service';
 import { PlantillaService } from './plantilla.service';
 import type {
@@ -14,6 +15,57 @@ import type {
   CrearEmailInput,
 } from '../schemas/email';
 import type { EnviarGmailInput } from '../schemas/gmail';
+import type { FirmaRow } from '../types/models';
+
+function escaparHtml(texto: string): string {
+  return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escaparAtributo(texto: string): string {
+  return texto.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function firmaHtml(firma: FirmaRow): string {
+  if (firma.tipo === 'imagen') {
+    const mime = firma.imagen_mime ? escaparAtributo(firma.imagen_mime) : 'image/png';
+    const enlace = firma.enlace ? ` href="${escaparAtributo(firma.enlace)}"` : '';
+    return (
+      '<br/><div style="margin-top:24px;">' +
+      `<a${enlace}><img src="cid:firma_${firma.id}" alt="Firma" ` +
+      'style="max-width:400px;max-height:120px;display:block;border:0;"/></a></div>'
+    );
+  }
+  const lineas = (firma.contenido ?? '')
+    .split('\n')
+    .map((linea) => escaparHtml(linea))
+    .join('<br/>');
+  return lineas
+    ? `<br/><div style="margin-top:16px;">${lineas}</div>`
+    : '';
+}
+
+function textoFirmaPlano(firma: FirmaRow): string {
+  if (firma.tipo === 'imagen') {
+    return firma.enlace ? `\r\n\r\n${firma.enlace}` : '';
+  }
+  const contenido = (firma.contenido ?? '').trim();
+  return contenido ? `\r\n\r\n${contenido}` : '';
+}
+
+function construirHtml(cuerpo: string, firmas: FirmaRow[]): string {
+  const parrafos = cuerpo
+    .split(/\n{2,}/)
+    .map((p) => {
+      const esc = escaparHtml(p).replace(/\r?\n/g, '<br/>');
+      return `<p style="margin:0 0 12px;">${esc}</p>`;
+    })
+    .join('');
+  const firma = firmas.map(firmaHtml).join('');
+  return (
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;">` +
+    `${parrafos}${firma}</div>`
+  );
+}
 
 function hoyDia(): string {
   return new Date().toISOString().slice(0, 10);
@@ -278,10 +330,28 @@ export const EmailService = {
       cuerpo = cuerpo ?? plantilla.cuerpo;
     }
 
+    const firmas = input.firmas?.length
+      ? await FirmaService.obtenerParaEnvio(usuarioId, input.firmas)
+      : [];
+    const firmasImagenes = firmas
+      .filter((f) => f.tipo === 'imagen' && f.imagen_base64)
+      .map((f) => ({
+        contentId: `firma_${f.id}`,
+        mimeType: f.imagen_mime ?? 'image/png',
+        contenidoBase64: f.imagen_base64 as string,
+      }));
+
+    let cuerpoPlano = cuerpo;
+    for (const firma of firmas) {
+      cuerpoPlano += textoFirmaPlano(firma);
+    }
+    const html = construirHtml(cuerpo, firmas);
+
     const enviado = await GmailService.enviar(usuarioId, {
       destinatario: input.destinatario,
       asunto: asunto,
-      cuerpo: cuerpo,
+      cuerpo: cuerpoPlano,
+      html: html,
       ...(input.cc ? { cc: input.cc } : {}),
       ...(input.adjuntos?.length
         ? {
@@ -292,6 +362,7 @@ export const EmailService = {
             })),
           }
         : {}),
+      ...(firmasImagenes.length ? { firmasImagenes } : {}),
     });
 
     const fechaEnvio = new Date().toISOString();
@@ -306,7 +377,7 @@ export const EmailService = {
       fecha: fechaEnvio,
       enviado: 1,
       contenido_resumen: enviado.snippet,
-      cuerpo_html: cuerpo,
+      cuerpo_html: html,
     });
 
     await AgendaService.agendarDesdeCorreo(input.destinatario);

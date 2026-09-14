@@ -28,6 +28,7 @@ const TABLAS_VACIABLES = [
   'usuario_categorias',
   'proyectos',
   'experiencias_laborales',
+  'firmas',
   'contactos',
   'usuarios',
   'categorias_trabajo',

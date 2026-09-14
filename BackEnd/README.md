@@ -54,10 +54,13 @@ cp .env.example .env   # completar TOKEN_TURSO y URL_TURSO
 - `LOG_LEVEL` — `debug` | `info` | `warn` | `error` | `silent`. Por defecto `debug` en
   development y `warn` en production; `silent` apaga todo el logging
   (arranque, requests, errores y flujo OAuth).
-- `PANTALLA_BETA` — `true` (por defecto): tras el login el backend **muestra una pantalla
-  de "fase de prueba"** en `GET /auth/callback` en lugar de redirigir al frontend.
-  En `false` vuelve el redirect a `FRONTEND_URL/auth/callback`. Útil mientras no exista
-  el frontend o la app esté sin verificar.
+- `PANTALLA_BETA` — `true` (por defecto, solo si `FRONTEND_URL` está vacío): tras el login el
+  backend **muestra una pantalla de "fase de prueba"** en `GET /auth/callback` en lugar de
+  redirigir al frontend. En cuanto existe un SPA (`FRONTEND_URL` configurado) el login **siempre**
+  redirige a `FRONTEND_URL/auth/callback#token=...` (el JWT viaja en el fragmento), así el flujo
+  funciona en producción aunque olvides `PANTALLA_BETA=false`.
+- `FRONTEND_URL` — URL del SPA (sin `/` final). Con un valor configurado, el callback redirige
+  acá con `#token=...`; sin valor, permanece la pantalla beta.
 - `CADENCIA_CONTACTO_DIAS` — días sugeridos entre contactos a una empresa (por defecto `30`).
   Se usa al enviar un email para calcular `postulaciones.proxima_contacto = hoy + cadencia`;
   una empresa puede sobreescribir la global con `empresas.cadencia_contacto`.
@@ -73,14 +76,15 @@ cp .env.example .env   # completar TOKEN_TURSO y URL_TURSO
 - `GET /auth/google/login` — redirige a Google para autorizar (login + Gmail).
 - `GET /auth/google/callback` — exchange del código, crea/actualiza el usuario, guarda los tokens en `cuentas_google`, emite JWT en cookie y redirige a `FRONTEND_URL`.
 - `GET /auth/me` — **protegido**, devuelve el usuario autenticado (lee cookie o Bearer).
-- `GET /auth/callback` — **protegido**, pantalla de "fase de prueba" (si `PANTALLA_BETA=true`); también sirve de destino al refrescar tras el login.
+- `GET /auth/callback` — **protegido**, pantalla de "fase de prueba" (si `PANTALLA_BETA=true` y
+  no hay `FRONTEND_URL`); también sirve de destino al refrescar tras el login.
 - `POST /auth/logout` — limpia las cookies de sesión.
 
 > Nota: el *Authorized redirect URI* de Google Cloud Console debe coincidir exactamente
 > con `GOOGLE_CALLBACK_URL` y el consent screen debe incluir `gmail.readonly` y `gmail.send`.
 > La primera vez que el usuario se autentica hay que guardar `refresh_token` (el
 > consent con `access_type=offline` lo devuelve); sin él no se podrán renovar accesos.
-> El callback acepta `?redirect=` opcional (debe empezar con `FRONTEND_URL`; si no, vuelve a `FRONTEND_URL/auth/callback`). Con `PANTALLA_BETA=true` siempre se muestra la pantalla de prueba en el backend y se ignoran los redirects.
+> El callback acepta `?redirect=` opcional (debe empezar con `FRONTEND_URL`; si no, vuelve a `FRONTEND_URL/auth/callback#token=...`). La pantalla beta solo se muestra si no hay `FRONTEND_URL` configurada.
 
 ### Categorías
 - `GET /api/categorias` · `POST /api/categorias` · `GET/PUT/DELETE /api/categorias/:id`

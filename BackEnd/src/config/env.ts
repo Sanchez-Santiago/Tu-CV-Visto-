@@ -38,8 +38,14 @@ const envSchema = z.object({
   JWT_SECRET: z.string().default(''),
 });
 
+// La pantalla beta (HTML del backend) solo aplica cuando no hay un SPA
+// configurado (FRONTEND_URL vacío). Con un SPA real el login siempre
+// redirige a FRONTEND_URL/auth/callback#token=... para no romper el flujo.
 export function esPantallaBetaActiva(): boolean {
-  return env.PANTALLA_BETA === 'true';
+  return (
+    env.PANTALLA_BETA === 'true' &&
+    env.FRONTEND_URL === ''
+  );
 }
 
 export type Env = z.infer<typeof envSchema>;

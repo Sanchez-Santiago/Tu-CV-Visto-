@@ -11,7 +11,12 @@ export function useAuth() {
     try {
       const me = await USUARIO.getMe();
       setUsuario(me);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const tokenPresente = Boolean(sessionStorage.getItem("cvisto_token"));
+      console.warn(
+        `[auth] verificarSesion falló (${tokenPresente ? "token presente" : "sin token"}): ${msg}`,
+      );
       setUsuario(null);
     } finally {
       setCargando(false);
