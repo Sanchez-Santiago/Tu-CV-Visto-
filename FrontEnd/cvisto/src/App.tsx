@@ -108,8 +108,13 @@ function AppContent() {
     [contactos.data, error],
   );
 
-  // Guard: handle /auth/callback landing (cookie already set by backend)
+  // Guard: handle /auth/callback landing — read token from URL fragment
   if (typeof window !== "undefined" && window.location.pathname === "/auth/callback") {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const token = params.get("token");
+    if (token) {
+      sessionStorage.setItem("cvisto_token", token);
+    }
     window.history.replaceState({}, "", "/");
   }
 

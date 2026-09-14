@@ -27,6 +27,10 @@ export const API_URL = `${API_BASE}/api`;
 // ─── Internal state ──────────────────────────────────────────
 let sesionUsuarioId: number | null = null;
 
+function getToken(): string | null {
+  return sessionStorage.getItem("cvisto_token");
+}
+
 // ─── Date helpers ────────────────────────────────────────────
 function hoyDia(): string {
   return new Date().toISOString().slice(0, 10);
@@ -43,9 +47,11 @@ async function request<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const url = path.startsWith("http") ? path : `${API_URL}${path}`;
+  const token = getToken();
   const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers as Record<string, string>),
     },
     credentials: "include",
@@ -55,6 +61,7 @@ async function request<T>(
   const body = await res.json();
   if (res.status === 401) {
     sesionUsuarioId = null;
+    sessionStorage.removeItem("cvisto_token");
     throw new Error("Sesión expirada");
   }
   if (body?.ok === false || res.status >= 400) {
@@ -808,6 +815,7 @@ export const USUARIO = {
   async logout(): Promise<void> {
     await request(`${API_BASE}/auth/logout`, { method: "POST" });
     sesionUsuarioId = null;
+    sessionStorage.removeItem("cvisto_token");
   },
 };
 

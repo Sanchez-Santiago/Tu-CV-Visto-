@@ -20,7 +20,7 @@ export const AuthController = {
     }
 
     const { usuario, token } = await AuthService.callback(code);
-    unificarSesion(res, token);
+    unificarSesion(res, token); // la dejamos como fallback para local/same-origin
 
     if (esPantallaBetaActiva()) {
       res
@@ -36,7 +36,8 @@ export const AuthController = {
 
     const redirect =
       typeof req.query.redirect === 'string' ? req.query.redirect : undefined;
-    res.redirect(destinoPostLogin(redirect));
+    const destino = destinoPostLogin(redirect);
+    res.redirect(`${destino}#token=${encodeURIComponent(token)}`);
   }),
 
   screenBeta: asyncHandler(async (req: Request, res: Response) => {
