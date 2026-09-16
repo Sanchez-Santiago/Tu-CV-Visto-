@@ -19,6 +19,7 @@ import {
 } from './analisis.service';
 
 const LIMITE_MAXIMO = 100;
+const LIMITE_CANDIDATOS = 50;
 
 export interface AnalisisDetalleIA {
   email_id: number;
@@ -115,7 +116,7 @@ export const AnalisisIAService = {
       await Promise.all([
         this.cargarPendientes(usuarioId),
         emailUsuario
-          ? EmailModel.listarSinPostulacionParaIA(emailUsuario, LIMITE_MAXIMO)
+          ? EmailModel.listarSinPostulacionParaIA(emailUsuario, LIMITE_CANDIDATOS)
           : [],
         PostulacionModel.listar({ usuarioId }),
         EmpresaModel.listar(),
@@ -295,22 +296,25 @@ export const AnalisisIAService = {
         const deteccionIA = detecciones[indiceIA];
         indiceIA += 1;
 
-        let esPostulacion: boolean;
-        let puestoIA: string | null = null;
-        if (deteccionIA) {
-          esPostulacion = deteccionIA.es_postulacion;
-          puestoIA = deteccionIA.puesto;
-        } else {
-          esPostulacion = esPostulacionPorKeywords(email);
-        }
+        const fuente: 'ia' | 'keywords' = usarIA ? 'ia' : 'keywords';
 
-        const fuente: 'ia' | 'keywords' =
-          usarIA && deteccionIA ? 'ia' : 'keywords';
-
-        if (!esPostulacion) {
+        if (usarIA) {
+          if (!deteccionIA) {
+            // La IA está configurada pero falló el lote:
+            // se deja el email sin marcar para re-analizarlo en el próximo sync.
+            continue;
+          }
+          if (!deteccionIA.es_postulacion) {
+            await EmailModel.actualizar(email.id, {
+              tipo_respuesta: 'otro',
+              tipo_respuesta_fuente: 'ia',
+            });
+            continue;
+          }
+        } else if (!esPostulacionPorKeywords(email)) {
           await EmailModel.actualizar(email.id, {
             tipo_respuesta: 'otro',
-            tipo_respuesta_fuente: fuente,
+            tipo_respuesta_fuente: 'keywords',
           });
           continue;
         }
@@ -327,7 +331,7 @@ export const AnalisisIAService = {
           continue;
         }
 
-        const puesto = puestoIA ?? this.puestoFallback(email);
+        const puesto = deteccionIA?.puesto ?? this.puestoFallback(email);
         const existente = this.buscarPostulacionExistente(
           postulaciones,
           empresaId,

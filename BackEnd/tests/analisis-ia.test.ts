@@ -385,6 +385,37 @@ describe('POST /api/gmail/analizar', () => {
     ).toBe(false);
   });
 
+  it('deja el email sin marcar cuando la IA falla (para reintentar en el próximo sync)', async () => {
+    detectarPostulacionesLoteMock.mockImplementation(
+      async (emails: { id: string }[]): Promise<(DeteccionPostulacionIA | null)[]> =>
+        emails.map(() => null),
+    );
+    const emailId = await insertarEmailSinPostulacion({
+      contenido:
+        'Nos gustaría invitarte a una entrevista técnica la próxima semana. Saludos.',
+      asunto: 'Entrevista Backend Developer',
+      gmailMessageId: 'sin-ia-falla-1',
+    });
+
+    const res = await analizar();
+    expect(res.body.data.postulaciones_creadas).toBe(0);
+
+    const emailRow = await db.execute({
+      sql: 'SELECT tipo_respuesta, postulacion_id FROM emails WHERE id = ?',
+      args: [emailId],
+    });
+    expect(emailRow.rows[0]!.tipo_respuesta).toBeNull();
+    expect(emailRow.rows[0]!.postulacion_id).toBeNull();
+
+    const segunda = await analizar();
+    expect(segunda.body.data.postulaciones_creadas).toBe(0);
+
+    await db.execute({
+      sql: 'DELETE FROM emails WHERE id = ?',
+      args: [emailId],
+    });
+  });
+
   it('vincula a una postulación existente en vez de duplicarla', async () => {
     const empresaY = await db.execute({
       sql: "INSERT INTO empresas (nombre) VALUES ('empresay') RETURNING id",

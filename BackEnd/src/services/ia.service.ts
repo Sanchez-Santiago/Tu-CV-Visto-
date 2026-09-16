@@ -1,11 +1,13 @@
 import { env } from '../config/env';
 import type { TipoRespuesta } from '../types/common';
 
-const MODELO = 'gemini-2.5-flash';
+const MODELO = 'gemini-3.6-flash';
 const URL_GEMINI = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 60_000;
+const RETRIES = 2;
+const ESPERAS_RETRY_MS = [2_000, 5_000];
 
-export const TAMANIO_LOTE = 10;
+export const TAMANIO_LOTE = 5;
 export const MAX_CONTENIDO_POR_EMAIL = 1500;
 
 export interface EmailParaAnalisis {
@@ -70,41 +72,69 @@ async function llamarGemini(prompt: string): Promise<unknown> {
     throw new Error('GEMINI_API_KEY no configurada');
   }
 
-  const control = new AbortController();
-  const temporizador = setTimeout(() => control.abort(), TIMEOUT_MS);
-  try {
-    const respuesta = await fetch(`${URL_GEMINI}?key=${env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0,
-        },
-      }),
-      signal: control.signal,
-    });
-    if (!respuesta.ok) {
-      throw new Error(`Gemini respondió ${respuesta.status}`);
+  let ultimoError: unknown;
+  for (let intento = 0; intento <= RETRIES; intento += 1) {
+    if (intento > 0) {
+      await new Promise((resolver) =>
+        setTimeout(resolver, ESPERAS_RETRY_MS[intento - 1] ?? 5_000),
+      );
     }
 
-    const cuerpo = (await respuesta.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const texto = cuerpo.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof texto !== 'string' || texto.trim() === '') {
-      throw new Error('Gemini devolvió una respuesta vacía');
-    }
+    const control = new AbortController();
+    const temporizador = setTimeout(() => control.abort(), TIMEOUT_MS);
+    try {
+      const respuesta = await fetch(`${URL_GEMINI}?key=${env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0,
+          },
+        }),
+        signal: control.signal,
+      });
+      if (!respuesta.ok) {
+        throw new Error(`Gemini respondió ${respuesta.status}`);
+      }
 
-    const limpio = texto
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/```\s*$/i, '')
-      .trim();
-    return JSON.parse(limpio);
-  } finally {
-    clearTimeout(temporizador);
+      const cuerpo = (await respuesta.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      const texto = cuerpo.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (typeof texto !== 'string' || texto.trim() === '') {
+        throw new Error('Gemini devolvió una respuesta vacía');
+      }
+
+      const limpio = texto
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+      return JSON.parse(limpio);
+    } catch (error) {
+      ultimoError = error;
+      if (!esErrorTransitorio(error)) {
+        throw error;
+      }
+    } finally {
+      clearTimeout(temporizador);
+    }
   }
+
+  throw ultimoError;
+}
+
+function esErrorTransitorio(error: unknown): boolean {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return true;
+  }
+  if (error instanceof TypeError) {
+    return true;
+  }
+  const mensaje =
+    error instanceof Error ? error.message : String(error);
+  return /Gemini respondió (429|500|502|503|504)/.test(mensaje);
 }
 
 export async function clasificarLote(
