@@ -1,7 +1,7 @@
 import { env } from '../config/env';
 import type { TipoRespuesta } from '../types/common';
 
-const MODELO = 'gemini-2.0-flash';
+const MODELO = 'gemini-2.5-flash';
 const URL_GEMINI = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
 const TIMEOUT_MS = 15_000;
 

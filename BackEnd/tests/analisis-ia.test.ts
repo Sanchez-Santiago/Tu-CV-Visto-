@@ -338,21 +338,21 @@ describe('POST /api/gmail/analizar', () => {
     const buscado = await request(app).get(
       `/api/postulaciones?usuario_id=${usuarioId}`,
     );
-    const creada = buscado.body.data.find(
-      (p: { puesto: string }) =>
+    const creada = (buscado.body.data as Array<Record<string, unknown>>).find(
+      (p) =>
         p.empresa_id !== empresaId && p.puesto === 'Backend Developer',
     );
     expect(creada).toBeDefined();
-    expect(creada.estado).toBe('entrevista');
-    expect(creada.cantidad_mails_enviados).toBe(0);
-    expect(creada.fuente).toBe('Email');
+    expect(creada!.estado).toBe('entrevista');
+    expect(creada!.cantidad_mails_enviados).toBe(0);
+    expect(creada!.fuente).toBe('Email');
 
     const emailRow = await db.execute({
       sql: 'SELECT postulacion_id, tipo_respuesta FROM emails WHERE id = ?',
       args: [emailId],
     });
-    expect(emailRow.rows[0].postulacion_id).toBe(creada.id);
-    expect(emailRow.rows[0].tipo_respuesta).toBe('entrevista');
+    expect(emailRow.rows[0]!.postulacion_id).toBe(creada!.id);
+    expect(emailRow.rows[0]!.tipo_respuesta).toBe('entrevista');
 
     const segunda = await analizar();
     expect(segunda.body.data.postulaciones_creadas).toBe(0);
@@ -374,7 +374,7 @@ describe('POST /api/gmail/analizar', () => {
       sql: 'SELECT tipo_respuesta FROM emails WHERE id = ?',
       args: [emailId],
     });
-    expect(emailRow.rows[0].tipo_respuesta).toBe('otro');
+    expect(emailRow.rows[0]!.tipo_respuesta).toBe('otro');
 
     const segunda = await analizar();
     expect(segunda.body.data.postulaciones_creadas).toBe(0);
@@ -415,7 +415,7 @@ describe('POST /api/gmail/analizar', () => {
       sql: 'SELECT postulacion_id FROM emails WHERE id = ?',
       args: [emailId],
     });
-    expect(emailRow.rows[0].postulacion_id).toBe(postulacionYId);
+    expect(emailRow.rows[0]!.postulacion_id).toBe(postulacionYId);
 
     const lista = await request(app).get('/api/postulaciones');
     const ids: number[] = lista.body.data.map((p: { id: number }) => p.id);
