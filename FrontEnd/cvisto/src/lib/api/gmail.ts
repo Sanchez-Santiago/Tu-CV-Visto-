@@ -1,7 +1,7 @@
 import { request } from "./http";
 import { emailFila } from "./mappers";
 import type { Email } from "@/src/schemas/email";
-import type { ResumenSincronizacion } from "./estrategia";
+import type { ResumenAnalisisIA, ResumenSincronizacion } from "./estrategia";
 
 export interface AdjuntoEnviar {
   nombre: string;
@@ -15,6 +15,13 @@ export const gmailApi = {
       `/gmail/sincronizar?dias=${dias}`,
     );
     return data as unknown as ResumenSincronizacion;
+  },
+
+  async analizar(): Promise<ResumenAnalisisIA> {
+    const data = await request<Record<string, unknown>>("/gmail/analizar", {
+      method: "POST",
+    });
+    return data as unknown as ResumenAnalisisIA;
   },
 
   async enviar(input: {

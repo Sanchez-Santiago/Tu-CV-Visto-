@@ -6,6 +6,7 @@ import type { Email } from "@/src/schemas/email";
 export type TipoRespuestaDetectada =
   | "rechazo"
   | "entrevista"
+  | "oferta"
   | "novedad"
   | "contacto"
   | "otro";
@@ -25,6 +26,32 @@ export interface ResumenSincronizacion {
   estados_actualizados: number;
   resumen: Record<TipoRespuestaDetectada, number>;
   detalle: SincronizacionDetalle[];
+  analisis_ia?: ResumenAnalisisIA;
+}
+
+export interface AnalisisDetalleIA {
+  email_id: number;
+  postulacion_id: number | null;
+  empresa: string;
+  tipo_respuesta: TipoRespuestaDetectada;
+  snippet: string;
+  estado_anterior: string | null;
+  estado_nuevo: string | null;
+  fuente: "keywords" | "ia";
+  postulacion_creada?: boolean;
+  vinculado_a_existente?: boolean;
+  puesto?: string;
+}
+
+export interface ResumenAnalisisIA {
+  analizados: number;
+  rechazos: number;
+  entrevistas: number;
+  ofertas: number;
+  estados_actualizados: number;
+  postulaciones_creadas: number;
+  postulaciones_vinculadas: number;
+  detalle: AnalisisDetalleIA[];
 }
 
 export interface RenovacionCandidata {

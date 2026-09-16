@@ -104,6 +104,8 @@ export function emailFila(fila: Record<string, unknown>): Email {
     enviado: (fila.enviado as number) ?? 1,
     contenidoResumen: (fila.contenido_resumen as string | null) ?? null,
     cuerpoHtml: (fila.cuerpo_html as string | null) ?? null,
+    tipoRespuesta: (fila.tipo_respuesta as string | null) ?? null,
+    tipoRespuestaFuente: (fila.tipo_respuesta_fuente as string | null) ?? null,
     createdAt: (fila.created_at as string | null) ?? null,
   });
 }

@@ -15,6 +15,7 @@ export const gmailRouter = Router();
 
 gmailRouter.post('/enviar', validate(enviarGmailSchema), GmailController.enviar);
 gmailRouter.get('/sincronizar', GmailController.sincronizar);
+gmailRouter.post('/analizar', GmailController.analizar);
 gmailRouter.get(
   '/mensajes',
   validateQuery(listarMensajesGmailQuery),

@@ -30,6 +30,16 @@ export const TIPOS_EMAIL = [
 ] as const;
 export type TipoEmail = (typeof TIPOS_EMAIL)[number];
 
+export const TIPOS_RESPUESTA = [
+  'rechazo',
+  'entrevista',
+  'oferta',
+  'novedad',
+  'contacto',
+  'otro',
+] as const;
+export type TipoRespuesta = (typeof TIPOS_RESPUESTA)[number];
+
 export const TIPOS_SEGUIMIENTO = [
   'consulta',
   'novedad',

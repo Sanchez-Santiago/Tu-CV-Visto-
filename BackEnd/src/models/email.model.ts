@@ -16,6 +16,8 @@ const CAMPOS_ACTUALIZABLES = {
   enviado: 'enviado',
   contenido_resumen: 'contenido_resumen',
   cuerpo_html: 'cuerpo_html',
+  tipo_respuesta: 'tipo_respuesta',
+  tipo_respuesta_fuente: 'tipo_respuesta_fuente',
 } as const;
 
 export interface FiltroEmails {
@@ -25,7 +27,7 @@ export interface FiltroEmails {
 const COLUMNAS_SELECT = `
   SELECT id, postulacion_id, gmail_message_id, tipo, tipo_seguimiento, asunto,
          remitente, destinatario, fecha, enviado, contenido_resumen, cuerpo_html,
-         created_at
+         tipo_respuesta, tipo_respuesta_fuente, created_at
   FROM emails
 `;
 
@@ -35,8 +37,9 @@ export const EmailModel = {
       sql: `
         INSERT INTO emails
           (postulacion_id, gmail_message_id, tipo, tipo_seguimiento, asunto,
-           remitente, destinatario, fecha, enviado, contenido_resumen, cuerpo_html)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           remitente, destinatario, fecha, enviado, contenido_resumen, cuerpo_html,
+           tipo_respuesta, tipo_respuesta_fuente)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         input.postulacion_id,
@@ -50,6 +53,8 @@ export const EmailModel = {
         input.enviado,
         input.contenido_resumen ?? null,
         input.cuerpo_html ?? null,
+        input.tipo_respuesta ?? null,
+        input.tipo_respuesta_fuente ?? null,
       ],
     });
     const creado = await this.obtenerPorId(Number(resultado.lastInsertRowid));
@@ -136,5 +141,83 @@ export const EmailModel = {
       args: [id],
     });
     return resultado.rowsAffected > 0;
+  },
+
+  async listarResumenParaUsuario(usuarioId: number): Promise<EmailRow[]> {
+    const resultado = await db.execute({
+      sql: `
+        SELECT e.id, e.postulacion_id, e.gmail_message_id, e.tipo, e.tipo_seguimiento,
+               e.asunto, e.remitente, e.destinatario, e.fecha, e.enviado,
+               e.contenido_resumen, e.tipo_respuesta, e.tipo_respuesta_fuente, e.created_at
+        FROM emails e
+        JOIN postulaciones p ON p.id = e.postulacion_id
+        WHERE p.usuario_id = ?
+        ORDER BY e.fecha DESC, e.id DESC
+      `,
+      args: [usuarioId],
+    });
+    return resultado.rows as unknown as EmailRow[];
+  },
+
+  async listarGmailMessageIds(usuarioId: number, emailUsuario: string): Promise<string[]> {
+    const resultado = await db.execute({
+      sql: `
+        SELECT gmail_message_id
+        FROM emails
+        WHERE gmail_message_id IS NOT NULL
+          AND gmail_message_id != ''
+          AND (
+            postulacion_id IN (SELECT id FROM postulaciones WHERE usuario_id = ?)
+            OR remitente = ? OR destinatario = ?
+          )
+      `,
+      args: [usuarioId, emailUsuario, emailUsuario],
+    });
+    return resultado.rows.map((r) => r.gmail_message_id as string);
+  },
+
+  async listarParaAnalisisIA(
+    usuarioId: number,
+    limite = 100,
+  ): Promise<EmailRow[]> {
+    const resultado = await db.execute({
+      sql: `
+        SELECT e.id, e.postulacion_id, e.gmail_message_id, e.tipo, e.tipo_seguimiento,
+               e.asunto, e.remitente, e.destinatario, e.fecha, e.enviado,
+               e.contenido_resumen, e.cuerpo_html, e.tipo_respuesta, e.tipo_respuesta_fuente,
+               e.created_at
+        FROM emails e
+        JOIN postulaciones p ON p.id = e.postulacion_id
+        WHERE e.enviado = 0
+          AND e.tipo = 'respuesta'
+          AND e.tipo_respuesta IS NULL
+          AND p.usuario_id = ?
+        ORDER BY e.fecha ASC, e.id ASC
+        LIMIT ?
+      `,
+      args: [usuarioId, limite],
+    });
+    return resultado.rows as unknown as EmailRow[];
+  },
+
+  async listarSinPostulacionParaIA(
+    emailUsuario: string,
+    limite = 100,
+  ): Promise<EmailRow[]> {
+    const resultado = await db.execute({
+      sql: `
+        SELECT e.id, e.postulacion_id, e.gmail_message_id, e.tipo, e.tipo_seguimiento,
+               e.asunto, e.remitente, e.destinatario, e.fecha, e.enviado,
+               e.contenido_resumen, e.tipo_respuesta, e.tipo_respuesta_fuente, e.created_at
+        FROM emails e
+        WHERE e.postulacion_id IS NULL
+          AND e.tipo_respuesta IS NULL
+          AND (e.remitente = ? OR e.destinatario = ?)
+        ORDER BY e.fecha ASC, e.id ASC
+        LIMIT ?
+      `,
+      args: [emailUsuario, emailUsuario, limite],
+    });
+    return resultado.rows as unknown as EmailRow[];
   },
 };

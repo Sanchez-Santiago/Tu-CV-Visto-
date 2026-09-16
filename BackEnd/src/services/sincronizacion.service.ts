@@ -12,6 +12,8 @@ import {
   matchearPostulacion,
   type TipoRespuesta,
 } from './analisis.service';
+import { AnalisisIAService, type ResumenAnalisisIA } from './analisis-ia.service';
+import { iaEstaConfigurada } from './ia.service';
 
 const MAX_RESULTADOS = 100;
 const MAX_PAGINAS = 10;
@@ -38,11 +40,13 @@ export interface ResumenSincronizacion {
   estados_actualizados: number;
   resumen: Record<TipoRespuesta, number>;
   detalle: SincronizacionDetalle[];
+  analisis_ia?: ResumenAnalisisIA;
 }
 
 const resumenVacio: Record<TipoRespuesta, number> = {
   rechazo: 0,
   entrevista: 0,
+  oferta: 0,
   novedad: 0,
   contacto: 0,
   otro: 0,
@@ -75,7 +79,7 @@ export const SincronizacionService = {
       await Promise.all([
         UsuarioModel.obtenerPorId(usuarioId),
         PostulacionModel.listar({ usuarioId }),
-        EmailModel.listar(),
+        EmailModel.listarResumenParaUsuario(usuarioId),
         EmpresaModel.listar(),
       ]);
 
@@ -122,11 +126,7 @@ export const SincronizacionService = {
     const emailPropio = usuario?.email ?? '';
 
     const idsYaImportados = new Set<string>(
-      emailsEnviados
-        .filter(
-          (email): email is EmailRow => Boolean(email.gmail_message_id),
-        )
-        .map((email) => email.gmail_message_id as string),
+      await EmailModel.listarGmailMessageIds(usuarioId, emailPropio),
     );
 
     for (const mensaje of mensajes) {
@@ -184,6 +184,14 @@ export const SincronizacionService = {
               contenidoHtml:
                 detalle.cuerpoHtml || detalle.cuerpo.slice(0, 4000) || null,
               fecha: detalle.fecha ?? new Date().toISOString(),
+              tipoRespuesta:
+                tipoRespuesta === 'rechazo' || tipoRespuesta === 'entrevista'
+                  ? tipoRespuesta
+                  : null,
+              tipoRespuestaFuente:
+                tipoRespuesta === 'rechazo' || tipoRespuesta === 'entrevista'
+                  ? 'keywords'
+                  : null,
             }));
 
       if (email === null) {
@@ -227,6 +235,19 @@ export const SincronizacionService = {
       });
 
       await esperar(ESPERA_ENTRE_MENSAJES_MS);
+    }
+
+    if (iaEstaConfigurada()) {
+      try {
+        const analisis = await AnalisisIAService.analizarEmailsPendientes(
+          usuarioId,
+        );
+        if (analisis.analizados > 0 || analisis.estados_actualizados > 0) {
+          resultado.analisis_ia = analisis;
+        }
+      } catch (error) {
+        console.error('[Sincronizacion] No se pudo analizar con IA:', error);
+      }
     }
 
     return resultado;

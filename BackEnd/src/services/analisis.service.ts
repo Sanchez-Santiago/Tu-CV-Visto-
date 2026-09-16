@@ -1,9 +1,6 @@
-export type TipoRespuesta =
-  | 'rechazo'
-  | 'entrevista'
-  | 'novedad'
-  | 'contacto'
-  | 'otro';
+import type { TipoRespuesta } from '../types/common';
+
+export type { TipoRespuesta };
 
 const FRASES_RECHAZO = [
   'no preseleccionado',

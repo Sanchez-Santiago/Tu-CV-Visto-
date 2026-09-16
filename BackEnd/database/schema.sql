@@ -350,6 +350,19 @@ CREATE TABLE IF NOT EXISTS emails (
 
     cuerpo_html TEXT,
 
+    tipo_respuesta TEXT
+        CHECK (tipo_respuesta IN (
+            'rechazo',
+            'entrevista',
+            'oferta',
+            'novedad',
+            'contacto',
+            'otro'
+        )),
+
+    tipo_respuesta_fuente TEXT
+        CHECK (tipo_respuesta_fuente IN ('keywords', 'ia')),
+
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (postulacion_id)

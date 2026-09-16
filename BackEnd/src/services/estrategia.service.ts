@@ -284,12 +284,10 @@ export const EstrategiaService = {
       );
     }
 
-    const idsUsuario = new Set(postulaciones.map((p) => p.id));
-    const respuestas = (await EmailModel.listar()).filter(
+    const respuestas = (await EmailModel.listarResumenParaUsuario(usuarioId)).filter(
       (email) =>
         email.tipo === 'respuesta' &&
         email.postulacion_id !== null &&
-        idsUsuario.has(email.postulacion_id) &&
         Boolean(email.gmail_message_id),
     );
 
@@ -348,15 +346,10 @@ export const EstrategiaService = {
   },
 
   async estadisticas(usuarioId: number): Promise<EstadisticasEstrategia> {
-    const [postulaciones, todosLosEmails] = await Promise.all([
+    const [postulaciones, emails] = await Promise.all([
       PostulacionModel.listar({ usuarioId }),
-      EmailModel.listar(),
+      EmailModel.listarResumenParaUsuario(usuarioId),
     ]);
-
-    const idsPostulacion = new Set(postulaciones.map((p) => p.id));
-    const emails = todosLosEmails.filter(
-      (e) => e.postulacion_id !== null && idsPostulacion.has(e.postulacion_id),
-    );
 
     const enviados = emails.filter((e) => e.enviado === 1);
     const recibidos = emails.filter(

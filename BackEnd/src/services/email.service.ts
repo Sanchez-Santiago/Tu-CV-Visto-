@@ -5,6 +5,7 @@ import { PostulacionModel } from '../models/postulacion.model';
 import { SeguimientoModel } from '../models/seguimiento.model';
 import { UsuarioModel } from '../models/usuario.model';
 import type { EmailRow } from '../types/models';
+import type { TipoRespuesta } from '../types/common';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { AgendaService } from './agenda.service';
 import { FirmaService } from './firma.service';
@@ -128,6 +129,8 @@ export const EmailService = {
       contenidoResumen: string;
       contenidoHtml: string | null;
       fecha: string;
+      tipoRespuesta?: TipoRespuesta | null;
+      tipoRespuestaFuente?: 'keywords' | 'ia' | null;
     },
   ): Promise<EmailRow | null> {
     if (input.postulacionId !== null) {
@@ -164,6 +167,8 @@ export const EmailService = {
       enviado: 0,
       contenido_resumen: input.contenidoResumen,
       cuerpo_html: input.contenidoHtml ?? undefined,
+      tipo_respuesta: input.tipoRespuesta ?? undefined,
+      tipo_respuesta_fuente: input.tipoRespuestaFuente ?? undefined,
     });
 
     if (input.postulacionId !== null) {

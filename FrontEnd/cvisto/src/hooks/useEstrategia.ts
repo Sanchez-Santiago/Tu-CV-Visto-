@@ -4,6 +4,7 @@ import {
   gmailApi,
   type EstadisticasEstrategia,
   type RenovacionCandidata,
+  type ResumenAnalisisIA,
   type ResumenSincronizacion,
   type RevisionRechazoCandidata,
 } from "@/src/lib/api/client";
@@ -48,6 +49,12 @@ export function useEstrategia() {
     [refrescar],
   );
 
+  const analizar = useCallback(async (): Promise<ResumenAnalisisIA> => {
+    const resumen = await gmailApi.analizar();
+    await refrescar();
+    return resumen;
+  }, [refrescar]);
+
   const renovar = useCallback(
     async (
       items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
@@ -75,6 +82,7 @@ export function useEstrategia() {
     error,
     refrescar,
     sincronizar,
+    analizar,
     renovar,
     confirmarRechazo,
   };

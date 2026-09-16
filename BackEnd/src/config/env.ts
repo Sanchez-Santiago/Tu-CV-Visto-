@@ -36,6 +36,8 @@ const envSchema = z.object({
   GOOGLE_CALLBACK_URL: z.string().url().default(''),
   FRONTEND_URL: z.string().url().default(''),
   JWT_SECRET: z.string().default(''),
+
+  GEMINI_API_KEY: z.string().default(''),
 });
 
 // La pantalla beta (HTML del backend) solo aplica cuando no hay un SPA

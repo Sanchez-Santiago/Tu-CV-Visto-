@@ -98,6 +98,7 @@ function AppContent() {
   });
   const estrategiaActions = useEstrategiaActions({
     sincronizar: estrategia.sincronizar,
+    analizar: estrategia.analizar,
     renovar: estrategia.renovar,
     confirmarRechazo: estrategia.confirmarRechazo,
     refrescarPostulaciones: postulaciones.refrescar,
@@ -281,6 +282,7 @@ function AppContent() {
               cargando={estrategia.cargando}
               error={estrategia.error}
               onSincronizar={estrategiaActions.sincronizar}
+              onAnalizar={estrategiaActions.analizar}
               onRenovar={estrategiaActions.renovar}
               onConfirmarRechazo={estrategiaActions.confirmarRechazo}
               onNavigate={setCurrentView}

@@ -39,5 +39,15 @@ export const TipoSeguimientoSchema = z.enum([
 ]);
 export type TipoSeguimiento = z.infer<typeof TipoSeguimientoSchema>;
 
+export const TipoRespuestaSchema = z.enum([
+  "rechazo",
+  "entrevista",
+  "oferta",
+  "novedad",
+  "contacto",
+  "otro",
+]);
+export type TipoRespuesta = z.infer<typeof TipoRespuestaSchema>;
+
 export const FlagSchema = z.union([z.literal(0), z.literal(1)]);
 export type Flag = z.infer<typeof FlagSchema>;

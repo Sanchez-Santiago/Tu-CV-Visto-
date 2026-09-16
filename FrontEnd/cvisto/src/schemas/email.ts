@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { FlagSchema, TipoEmailSchema, TipoSeguimientoSchema } from "./common";
+import {
+  FlagSchema,
+  TipoEmailSchema,
+  TipoRespuestaSchema,
+  TipoSeguimientoSchema,
+} from "./common";
 
 export const EmailSchema = z.object({
   id: z.string(),
@@ -14,6 +19,8 @@ export const EmailSchema = z.object({
   enviado: FlagSchema.default(1),
   contenidoResumen: z.string().max(4000).nullable().optional(),
   cuerpoHtml: z.string().nullable().optional(),
+  tipoRespuesta: TipoRespuestaSchema.nullable().optional(),
+  tipoRespuestaFuente: z.enum(["keywords", "ia"]).nullable().optional(),
   createdAt: z.string().nullable().optional(),
 });
 export type Email = z.infer<typeof EmailSchema>;

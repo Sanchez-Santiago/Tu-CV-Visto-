@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { EmailService } from '../services/email.service';
 import { GmailService } from '../services/gmail.service';
 import { SincronizacionService } from '../services/sincronizacion.service';
+import { AnalisisIAService } from '../services/analisis-ia.service';
 import { asyncHandler } from '../utils/async-handler';
 import {
   listarMensajesGmailQuery,
@@ -40,6 +41,13 @@ export const GmailController = {
     const data = await SincronizacionService.sincronizar(
       req.usuarioId!,
       q?.dias,
+    );
+    res.json({ ok: true, data });
+  }),
+
+  analizar: asyncHandler(async (req: Request, res: Response) => {
+    const data = await AnalisisIAService.analizarEmailsPendientes(
+      req.usuarioId!,
     );
     res.json({ ok: true, data });
   }),

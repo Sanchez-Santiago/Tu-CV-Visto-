@@ -133,6 +133,8 @@ export interface EmailRow {
   enviado: number;
   contenido_resumen: string | null;
   cuerpo_html: string | null;
+  tipo_respuesta: string | null;
+  tipo_respuesta_fuente: string | null;
   created_at: string;
 }
 

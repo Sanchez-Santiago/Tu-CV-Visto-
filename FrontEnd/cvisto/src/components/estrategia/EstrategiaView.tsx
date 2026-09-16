@@ -17,6 +17,7 @@ import { Modal } from "@/src/components/ui/Modal";
 import type { NavView } from "@/src/components/layout/Sidebar";
 import type {
   ResumenSincronizacion,
+  ResumenAnalisisIA,
   TipoRespuestaDetectada,
 } from "@/src/lib/api/client";
 
@@ -27,6 +28,7 @@ interface EstrategiaViewProps {
   cargando: boolean;
   error: string | null;
   onSincronizar: (dias: number) => Promise<ResumenSincronizacion>;
+  onAnalizar: () => Promise<ResumenAnalisisIA>;
   onRenovar: (
     items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
   ) => Promise<unknown>;
@@ -37,6 +39,7 @@ interface EstrategiaViewProps {
 const tipoRespuestaLabels: Record<TipoRespuestaDetectada, string> = {
   rechazo: "Rechazo",
   entrevista: "Entrevista",
+  oferta: "Oferta",
   novedad: "Novedad",
   contacto: "Contacto",
   otro: "Otro",
@@ -57,13 +60,16 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
   cargando,
   error,
   onSincronizar,
+  onAnalizar,
   onRenovar,
   onConfirmarRechazo,
   onNavigate,
 }) => {
   const [sincronizando, setSincronizando] = useState(false);
+  const [analizandoIA, setAnalizandoIA] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [resumen, setResumen] = useState<ResumenSincronizacion | null>(null);
+  const [resumenIA, setResumenIA] = useState<ResumenAnalisisIA | null>(null);
   const [mensaje, setMensaje] = useState<{
     tipo: "ok" | "err";
     texto: string;
@@ -109,6 +115,28 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
       setMensaje({ tipo: "err", texto: mensajeError(e) });
     } finally {
       setSincronizando(false);
+    }
+  };
+
+  const handleAnalizar = async () => {
+    setAnalizandoIA(true);
+    setMensaje(null);
+    try {
+      const r = await onAnalizar();
+      setResumenIA(r);
+      setMensaje({
+        tipo: r.estados_actualizados > 0 ? "ok" : "ok",
+        texto:
+          r.estados_actualizados > 0
+            ? `IA: ${r.rechazos} rechazo(s), ${r.entrevistas} entrevista(s) y ${r.ofertas} oferta(s). ${r.estados_actualizados} estado(s) actualizado(s).`
+            : r.analizados > 0
+              ? `IA: ${r.analizados} email(s) clasificado(s), sin cambios de estado.`
+              : "IA: sin emails pendientes de clasificar.",
+      });
+    } catch (e) {
+      setMensaje({ tipo: "err", texto: mensajeError(e) });
+    } finally {
+      setAnalizandoIA(false);
     }
   };
 
@@ -205,6 +233,15 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
           >
             {sincronizando ? "Actualizando..." : "Actualizar"}
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            isLoading={analizandoIA}
+            onClick={handleAnalizar}
+            leftIcon={<Sparkles className="w-4 h-4" />}
+          >
+            Analizar con IA
+          </Button>
         </div>
 
         {resumen && (
@@ -221,7 +258,18 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
                 {(Object.entries(resumen.resumen) as [TipoRespuestaDetectada, number][]).map(
                   ([tipo, cantidad]) =>
                     cantidad > 0 ? (
-                      <span key={tipo} className={`font-semibold ${tipo === "rechazo" ? "text-rose-400" : tipo === "entrevista" ? "text-[#22C55E]" : "text-[#D6DCD8]"}`}>
+                      <span
+                        key={tipo}
+                        className={`font-semibold ${
+                          tipo === "rechazo"
+                            ? "text-rose-400"
+                            : tipo === "entrevista"
+                              ? "text-[#22C55E]"
+                              : tipo === "oferta"
+                                ? "text-violet-300"
+                                : "text-[#D6DCD8]"
+                        }`}
+                      >
                         {tipoRespuestaLabels[tipo]}: {cantidad}
                       </span>
                     ) : null,
@@ -244,7 +292,9 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
                       ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
                       : d.tipo_respuesta === "entrevista"
                         ? "bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30"
-                        : "bg-white/[0.04] text-[#A7B0AA] border border-white/[0.06]"
+                        : d.tipo_respuesta === "oferta"
+                          ? "bg-violet-500/10 text-violet-300 border border-violet-500/30"
+                          : "bg-white/[0.04] text-[#A7B0AA] border border-white/[0.06]"
                   }`}
                 >
                   {tipoRespuestaLabels[d.tipo_respuesta]}
@@ -525,6 +575,107 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
           )}
         </div>
       )}
+
+      {/* Resultado del análisis con IA */}
+      <Modal
+        isOpen={resumenIA !== null}
+        onClose={() => setResumenIA(null)}
+        title="Análisis con IA"
+        description="Clasificación de emails de respuesta, creación de postulaciones detectadas y estados actualizados."
+        maxWidth="2xl"
+      >
+        {resumenIA && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              <Kpi label="Analizados" value={resumenIA.analizados} />
+              <Kpi label="Rechazos" value={resumenIA.rechazos} color="text-rose-400" />
+              <Kpi
+                label="Entrevistas"
+                value={resumenIA.entrevistas}
+                color="text-[#22C55E]"
+              />
+              <Kpi label="Ofertas" value={resumenIA.ofertas} color="text-violet-300" />
+              <Kpi
+                label="Estados cambiados"
+                value={resumenIA.estados_actualizados}
+                highlight={resumenIA.estados_actualizados > 0}
+              />
+              <Kpi
+                label="Postulaciones creadas"
+                value={resumenIA.postulaciones_creadas}
+                highlight={resumenIA.postulaciones_creadas > 0}
+              />
+              <Kpi
+                label="Vinculadas"
+                value={resumenIA.postulaciones_vinculadas}
+                highlight={resumenIA.postulaciones_vinculadas > 0}
+              />
+            </div>
+
+            {resumenIA.detalle.length === 0 ? (
+              <p className="text-xs text-[#69736D] py-2">
+                No hay correos pendientes de clasificar.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-[#A7B0AA] uppercase tracking-wider">
+                  Detalle ({resumenIA.detalle.length})
+                </h4>
+                <div className="max-h-72 overflow-y-auto space-y-2">
+                  {resumenIA.detalle.map((d) => (
+                    <div
+                      key={d.email_id}
+                      className="flex items-start gap-3 text-xs rounded-lg p-2.5 bg-[#101412] border border-[#232C28]"
+                    >
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase shrink-0 ${
+                          d.tipo_respuesta === "rechazo"
+                            ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                            : d.tipo_respuesta === "entrevista"
+                              ? "bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30"
+                              : d.tipo_respuesta === "oferta"
+                                ? "bg-violet-500/10 text-violet-300 border border-violet-500/30"
+                                : "bg-white/[0.04] text-[#A7B0AA] border border-white/[0.06]"
+                        }`}
+                      >
+                        {tipoRespuestaLabels[d.tipo_respuesta]}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-[#F2F5F3]">
+                          {d.empresa}
+                          {d.puesto ? (
+                            <span className="text-[#A7B0AA] font-normal">
+                              {" · "}
+                              {d.puesto}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-[#A7B0AA] line-clamp-1">{d.snippet}</p>
+                        {d.postulacion_creada && d.estado_nuevo ? (
+                          <p className="text-[11px] text-[#22C55E] mt-0.5">
+                            Postulación creada (estado: {d.estado_nuevo})
+                          </p>
+                        ) : d.vinculado_a_existente ? (
+                          <p className="text-[11px] text-[#EAB308] mt-0.5">
+                            Vinculada a una postulación existente
+                          </p>
+                        ) : d.estado_nuevo ? (
+                          <p className="text-[11px] text-[#22C55E] mt-0.5">
+                            Estado: {d.estado_anterior} → {d.estado_nuevo}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span className="text-[10px] uppercase text-[#69736D] shrink-0">
+                        {d.fuente === "ia" ? "IA" : "Keywords"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Confirm dialog rechezo */}
       <Modal

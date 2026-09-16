@@ -33,6 +33,16 @@ const MIGRACIONES_COLUMNAS: MigracionColumna[] = [
     ddl: 'ALTER TABLE emails ADD COLUMN cuerpo_html TEXT',
   },
   {
+    tabla: 'emails',
+    columna: 'tipo_respuesta',
+    ddl: 'ALTER TABLE emails ADD COLUMN tipo_respuesta TEXT',
+  },
+  {
+    tabla: 'emails',
+    columna: 'tipo_respuesta_fuente',
+    ddl: "ALTER TABLE emails ADD COLUMN tipo_respuesta_fuente TEXT",
+  },
+  {
     tabla: 'usuarios',
     columna: 'telefono',
     ddl: 'ALTER TABLE usuarios ADD COLUMN telefono TEXT',
@@ -131,16 +141,18 @@ async function emailsPostulacionIdNullable(client: Client): Promise<void> {
       enviado INTEGER NOT NULL DEFAULT 1 CHECK (enviado IN (0,1)),
       contenido_resumen TEXT,
       cuerpo_html TEXT,
+      tipo_respuesta TEXT,
+      tipo_respuesta_fuente TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (postulacion_id) REFERENCES postulaciones(id) ON DELETE CASCADE
     );
     INSERT INTO emails_nuevo
       (id, postulacion_id, gmail_message_id, tipo, tipo_seguimiento, asunto,
        remitente, destinatario, fecha, enviado, contenido_resumen, cuerpo_html,
-       created_at)
+       tipo_respuesta, tipo_respuesta_fuente, created_at)
       SELECT id, postulacion_id, gmail_message_id, tipo, tipo_seguimiento, asunto,
              remitente, destinatario, fecha, enviado, contenido_resumen, cuerpo_html,
-             created_at
+             tipo_respuesta, tipo_respuesta_fuente, created_at
       FROM emails;
     DROP TABLE emails;
     ALTER TABLE emails_nuevo RENAME TO emails;

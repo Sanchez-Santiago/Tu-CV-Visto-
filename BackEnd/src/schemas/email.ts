@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { email, flag, TIPOS_EMAIL, TIPOS_SEGUIMIENTO } from '../types/common';
+import { email, flag, TIPOS_EMAIL, TIPOS_RESPUESTA, TIPOS_SEGUIMIENTO } from '../types/common';
 
 export const crearEmailSchema = z.object({
   postulacion_id: z
@@ -20,6 +20,8 @@ export const crearEmailSchema = z.object({
   enviado: flag.default(1),
   contenido_resumen: z.string().trim().max(4000).optional(),
   cuerpo_html: z.string().optional(),
+  tipo_respuesta: z.enum(TIPOS_RESPUESTA).optional(),
+  tipo_respuesta_fuente: z.enum(['keywords', 'ia']).optional(),
 });
 
 export const actualizarEmailSchema = crearEmailSchema.partial();
