@@ -6,9 +6,12 @@ import {
   Bell, 
   Sparkles,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
+import { useTheme } from "@/src/hooks/useTheme";
 
 interface HeaderProps {
   title: string;
@@ -35,6 +38,8 @@ export const Header: React.FC<HeaderProps> = ({
   onActualizar,
   actualizando = false,
 }) => {
+  const { resolvedTheme, toggleTheme } = useTheme();
+
   return (
     <header className="sticky top-0 z-20 bg-[#080A09]/90 backdrop-blur-md border-b border-white/[0.06] px-4 lg:px-8 py-3.5 flex items-center justify-between gap-4 select-none">
       {/* Left: Mobile trigger & view title */}
@@ -88,6 +93,20 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-[11px] text-[#A7B0AA]">pendientes</span>
           </button>
         )}
+
+        {/* Theme Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={resolvedTheme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          className="flex items-center justify-center w-8 h-8 rounded-[10px] bg-[#141817] border border-white/[0.08] text-[#A7B0AA] hover:text-[#F2F5F3] hover:border-white/[0.15] transition-all cursor-pointer shadow-xs"
+        >
+          {resolvedTheme === "dark" ? (
+            <Sun className="w-4 h-4 text-[#FBBC05]" />
+          ) : (
+            <Moon className="w-4 h-4 text-[#6366F1]" />
+          )}
+        </button>
 
         {/* Global Actualizar button */}
         {onActualizar && (

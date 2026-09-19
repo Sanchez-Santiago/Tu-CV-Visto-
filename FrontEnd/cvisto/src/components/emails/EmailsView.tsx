@@ -13,6 +13,7 @@ import { SearchInput } from "@/src/components/ui/SearchInput";
 import { EmptyState } from "@/src/components/ui/EmptyState";
 import { nombreEmpresa } from "@/src/lib/nombres";
 import { armarPrefijoAsunto, textoSinHtml } from "@/src/lib/texto";
+import { esHtml, normalizarHtml } from "@/src/lib/html";
 import {
   ESTADO_LABELS,
   ESTADO_COLORS,
@@ -36,23 +37,6 @@ interface EmailsViewProps {
 }
 
 const PAGINA_SIZE = 50;
-
-const esHtml = (contenido: string | null | undefined): boolean => {
-  const texto = (contenido ?? "").trim();
-  if (!texto) return false;
-  return /<\s*(?:!DOCTYPE|html|head|body|div|table|tr|td|p\b|span|a\b|img|style|strong|b\b|br\b|ul|ol|li|h[1-6])\b[\s\S]*>/i.test(
-    texto,
-  );
-};
-
-const normalizarHtml = (contenido: string): string => {
-  const texto = (contenido ?? "").trim();
-  if (!texto) return "";
-  if (/\s*<!DOCTYPE\b/i.test(texto) || /\s*<html\b/i.test(texto)) {
-    return texto;
-  }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45}</style></head><body>${texto}</body></html>`;
-};
 
 const cuerpoPlano = (e: Email): string => {
   if (e.cuerpoHtml && esHtml(e.cuerpoHtml)) return textoSinHtml(e.cuerpoHtml);

@@ -57,7 +57,6 @@ const FRASES_ENTREVISTA = [
   'moving forward',
   'moving you forward',
   'invite you',
-  'oferta laboral',
 ] as const;
 
 const FRASES_NOVEDAD = [
@@ -68,6 +67,32 @@ const FRASES_NOVEDAD = [
   'progreso',
   'news',
   'status',
+] as const;
+
+/** Dominios/patrones de portales de alertas de empleo. Si el remitente contiene
+ *  alguno de estos, el email se clasifica directamente como 'otro' para evitar
+ *  falsos positivos (e.g. "Nueva oferta laboral en LinkedIn"). */
+const REMITENTES_PORTALES = [
+  'jobalert', 'job-alert', 'job_alert',
+  'alertas@', 'alertas.',
+  'noreply@linkedin', 'jobs-noreply@', 'jobalerts@',
+  'computrabajo', 'bumeran', 'zonajobs', 'multitrabajos',
+  'indeed', 'glassdoor', 'infojobs', 'catho',
+  'talent.com', 'jobs.lever', 'greenhouse.io',
+  'workday', 'smartrecruiters', 'icims',
+  'alert@', 'alerts@', 'no-reply@jobs', 'noreply@jobs',
+] as const;
+
+const ASUNTOS_ALERTA_EMPLEO = [
+  'nueva oferta laboral',
+  'nuevas ofertas',
+  'ofertas que te pueden interesar',
+  'trabajos para ti',
+  'jobs for you',
+  'job alert',
+  'job matches',
+  'new jobs',
+  'recomendaciones de empleo',
 ] as const;
 
 function normalizar(texto: string): string {
@@ -117,11 +142,27 @@ function palabrasEmpresa(nombre: string): string {
   return normalizar(nombre).replace(/[^a-z0-9]/g, '');
 }
 
+/** Devuelve true si el email parece ser una alerta automática de portal de empleo. */
+function esAlertaDePortal(remitente: string | null, asunto: string | null): boolean {
+  const rem = normalizar(remitente ?? '');
+  const asu = normalizar(asunto ?? '');
+  for (const patron of REMITENTES_PORTALES) {
+    if (rem.includes(patron)) return true;
+  }
+  for (const frase of ASUNTOS_ALERTA_EMPLEO) {
+    if (asu.includes(normalizar(frase))) return true;
+  }
+  return false;
+}
+
 export function clasificarRespuesta(input: {
   asunto: string | null;
   remitente: string | null;
   cuerpo: string;
 }): TipoRespuesta {
+  // Los emails de alertas de portales de empleo no son respuestas a postulaciones
+  if (esAlertaDePortal(input.remitente, input.asunto)) return 'otro';
+
   const texto = normalizar(
     `${input.asunto ?? ''} ${input.remitente ?? ''} ${input.cuerpo}`,
   );

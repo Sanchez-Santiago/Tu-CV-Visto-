@@ -1,5 +1,5 @@
 import React from "react";
-import { MapPin, Calendar, Trash2, Edit2 } from "lucide-react";
+import { MapPin, Calendar, Trash2, Edit2, Mail } from "lucide-react";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
 import type { EstadoPostulacion } from "@/src/schemas/common";
@@ -14,6 +14,7 @@ interface ApplicationCardProps {
   onEdit: (p: Postulacion) => void;
   onDelete: (id: string) => void;
   onQuickStatusChange: (id: string, newEstado: EstadoPostulacion) => void;
+  onViewEmails?: (p: Postulacion) => void;
 }
 
 export const ApplicationCard: React.FC<ApplicationCardProps> = ({
@@ -23,6 +24,7 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
   onEdit,
   onDelete,
   onQuickStatusChange,
+  onViewEmails,
 }) => {
   const empresa = nombreEmpresa(empresas, postulacion.empresaId);
 
@@ -90,7 +92,18 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
         </select>
 
         <div className="flex items-center gap-1">
+          {onViewEmails && (
+            <button
+              type="button"
+              onClick={() => onViewEmails(postulacion)}
+              className="p-1.5 text-[#69736D] hover:text-[#22C55E] rounded hover:bg-[#181D1B] transition-colors"
+              title="Ver emails vinculados"
+            >
+              <Mail className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
+            type="button"
             onClick={() => onEdit(postulacion)}
             className="p-1.5 text-[#69736D] hover:text-[#F2F5F3] rounded hover:bg-[#181D1B] transition-colors"
             title="Editar postulación"
@@ -98,6 +111,7 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
             <Edit2 className="w-3.5 h-3.5" />
           </button>
           <button
+            type="button"
             onClick={() => onDelete(postulacion.id)}
             className="p-1.5 text-[#69736D] hover:text-rose-400 rounded hover:bg-[#2A1517] transition-colors"
             title="Eliminar postulación"

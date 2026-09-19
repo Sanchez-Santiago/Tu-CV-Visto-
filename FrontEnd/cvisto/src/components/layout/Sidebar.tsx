@@ -11,6 +11,7 @@ import {
   Target,
   X,
 } from "lucide-react";
+import { Logo } from "@/src/components/ui/Logo";
 import type { Usuario } from "@/src/schemas/usuario";
 
 export type NavView =
@@ -31,7 +32,7 @@ interface SidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   pendingFollowupsCount: number;
-  activeAppsCount: number;
+  postulacionesCount: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
   pendingFollowupsCount,
-  activeAppsCount,
+  postulacionesCount,
 }) => {
   const navSections = [
     {
@@ -56,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: "postulaciones" as NavView,
           label: "Postulaciones",
           icon: <Briefcase className="w-4 h-4" />,
-          badge: activeAppsCount > 0 ? activeAppsCount : undefined,
+          badge: postulacionesCount > 0 ? postulacionesCount : undefined,
         },
         {
           id: "empresas" as NavView,
@@ -109,20 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="flex flex-col h-full bg-[#0D100F] border-r border-white/[0.06] select-none">
       {/* Brand Logo Header */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.05]">
-        <div className="flex items-center gap-3">
-          {/* Logo Mark: Physical recessed surface with subtle green light */}
-          <div className="relative flex items-center justify-center w-8 h-8 rounded-[10px] bg-[#121614] border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_8px_rgba(0,0,0,0.5)]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#22C55E] shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-          </div>
-          <div>
-            <span className="text-base font-semibold tracking-tight text-[#F2F5F3] font-['Inter']">
-              CVisto
-            </span>
-            <span className="block text-[10px] uppercase font-medium tracking-wider text-[#A7B0AA] -mt-0.5">
-              Workspace
-            </span>
-          </div>
-        </div>
+        <Logo size="md" />
 
         {/* Mobile close button */}
         <button

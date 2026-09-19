@@ -174,3 +174,226 @@
   background: #28332D;
 }
 
+/* =========================================================
+   LIGHT MODE STYLING & SKEUOMORPHISM
+   ========================================================= */
+
+html.light {
+  color-scheme: light;
+  --bg-main: #F6F8F7;
+  --bg-secondary: #FFFFFF;
+  --surface-base: #FFFFFF;
+  --surface-card: #FFFFFF;
+  --surface-elevated: #F0F4F2;
+  --surface-elevated-2: #E8ECE9;
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #6B7280;
+}
+
+html.light body {
+  background-color: #F6F8F7 !important;
+  color: #111827 !important;
+  background-image: radial-gradient(circle at 50% -10%, rgba(34, 197, 94, 0.07) 0%, transparent 60%);
+}
+
+html.light .skeuo-surface {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+html.light .skeuo-surface-elevated {
+  background-color: #F8FAF9 !important;
+  border: 1px solid rgba(0, 0, 0, 0.09) !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+html.light .skeuo-card-interactive {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+
+html.light .skeuo-card-interactive:hover {
+  background-color: #FCFDFC !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(34, 197, 94, 0.2) !important;
+}
+
+html.light .skeuo-button-secondary {
+  background-color: #F0F3F1 !important;
+  color: #111827 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+
+html.light .skeuo-button-secondary:hover {
+  background-color: #E4E9E6 !important;
+  border-color: rgba(0, 0, 0, 0.16) !important;
+  color: #000000 !important;
+}
+
+html.light .skeuo-input {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  color: #111827 !important;
+}
+
+html.light .skeuo-input:focus {
+  border-color: rgba(34, 197, 94, 0.6) !important;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.04),
+    0 0 0 2px rgba(34, 197, 94, 0.2) !important;
+}
+
+html.light .skeuo-modal {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.15),
+    0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #F0F3F1;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #CCD4D0;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #B0BCB6;
+}
+
+/* Tokens de texto adaptados para modo claro */
+html.light [class*="text-[#F2F5F3]"] {
+  color: #111827 !important;
+}
+html.light [class*="text-[#A7B0AA]"] {
+  color: #4B5563 !important;
+}
+html.light [class*="text-[#69736D]"] {
+  color: #6B7280 !important;
+}
+html.light [class*="text-[#D1D9D4]"] {
+  color: #374151 !important;
+}
+
+/* Superficies oscuras adaptadas a modo claro */
+html.light [class*="bg-[#080A09]"] {
+  background-color: #F6F8F7 !important;
+}
+html.light [class*="bg-[#0D100F]"] {
+  background-color: #FFFFFF !important;
+}
+html.light [class*="bg-[#101412]"] {
+  background-color: #F0F4F2 !important;
+}
+html.light [class*="bg-[#121614]"] {
+  background-color: #E8ECE9 !important;
+}
+html.light [class*="bg-[#141817]"] {
+  background-color: #FFFFFF !important;
+}
+html.light [class*="bg-[#171C19]"] {
+  background-color: #F8FAF9 !important;
+}
+html.light [class*="bg-[#181D1B]"] {
+  background-color: #EAEFEA !important;
+}
+html.light [class*="bg-[#1C221F]"] {
+  background-color: #E2E8E4 !important;
+}
+html.light [class*="bg-[#1E2521]"] {
+  background-color: #E2E8E4 !important;
+}
+
+/* Bordes en modo claro */
+html.light [class*="border-[#222A26]"],
+html.light [class*="border-[#1F2723]"],
+html.light [class*="border-[#1B221E]"],
+html.light [class*="border-[#26312B]"],
+html.light [class*="border-[#2A3530]"],
+html.light [class*="border-[#2D3C34]"],
+html.light [class*="border-white/"] {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Estados hover en modo claro */
+html.light [class*="hover:bg-[#181D1B]"]:hover {
+  background-color: #EAEFEA !important;
+}
+html.light [class*="hover:bg-[#1C2320]"]:hover {
+  background-color: #E4EAE5 !important;
+}
+html.light [class*="hover:bg-[#1C221F]"]:hover {
+  background-color: #E2E8E4 !important;
+}
+html.light [class*="hover:text-[#F2F5F3]"]:hover {
+  color: #000000 !important;
+}
+
+/* Superficies adicionales de modo claro */
+html.light [class*="bg-[#0B0E0D]"],
+html.light [class*="bg-[#0E1210]"],
+html.light [class*="bg-[#18201C]"] {
+  background-color: #FFFFFF !important;
+}
+html.light [class*="bg-[#0C0F0E]"],
+html.light [class*="bg-[#101613]"],
+html.light [class*="bg-[#111613]"],
+html.light [class*="bg-[#151B18]"] {
+  background-color: #EDF1EE !important;
+}
+html.light [class*="bg-[#202723]"] {
+  background-color: #E4EAE5 !important;
+}
+html.light [class*="bg-[#201314]"],
+html.light [class*="bg-[#2A1517]"],
+html.light [class*="bg-[#2A1719]"] {
+  background-color: #FCEBEC !important;
+}
+
+/* Bordes adicionales de modo claro */
+html.light [class*="border-[#1C2320]"],
+html.light [class*="border-[#1E2622]"],
+html.light [class*="border-[#232C28]"],
+html.light [class*="border-[#232F28]"],
+html.light [class*="border-[#242E28]"],
+html.light [class*="border-[#2B3530]"],
+html.light [class*="border-[#2B3631]"] {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+html.light [class*="divide-[#1B221E]"] {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Hovers adicionales de modo claro */
+html.light [class*="hover:bg-[#101412]"]:hover,
+html.light [class*="hover:bg-[#141817]"]:hover {
+  background-color: #EAEFEA !important;
+}
+html.light [class*="hover:bg-[#202723]"]:hover {
+  background-color: #E4EAE5 !important;
+}
+html.light [class*="hover:bg-[#2A1517]"]:hover {
+  background-color: #FADADD !important;
+}
+
+
+

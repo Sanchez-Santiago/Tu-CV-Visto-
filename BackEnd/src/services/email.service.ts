@@ -26,10 +26,17 @@ function escaparAtributo(texto: string): string {
   return texto.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+function normalizarEnlace(enlace: string): string {
+  const limpio = enlace.trim();
+  if (!limpio) return limpio;
+  return /^[a-z][a-z0-9+.-]*:/i.test(limpio) ? limpio : `https://${limpio}`;
+}
+
 function firmaHtml(firma: FirmaRow): string {
   if (firma.tipo === 'imagen') {
-    const mime = firma.imagen_mime ? escaparAtributo(firma.imagen_mime) : 'image/png';
-    const enlace = firma.enlace ? ` href="${escaparAtributo(firma.enlace)}"` : '';
+    const enlace = firma.enlace
+      ? ` href="${escaparAtributo(normalizarEnlace(firma.enlace))}" target="_blank" rel="noopener noreferrer"`
+      : '';
     return (
       '<br/><div style="margin-top:24px;">' +
       `<a${enlace}><img src="cid:firma_${firma.id}" alt="Firma" ` +
@@ -47,7 +54,7 @@ function firmaHtml(firma: FirmaRow): string {
 
 function textoFirmaPlano(firma: FirmaRow): string {
   if (firma.tipo === 'imagen') {
-    return firma.enlace ? `\r\n\r\n${firma.enlace}` : '';
+    return firma.enlace ? `\r\n\r\n${normalizarEnlace(firma.enlace)}` : '';
   }
   const contenido = (firma.contenido ?? '').trim();
   return contenido ? `\r\n\r\n${contenido}` : '';

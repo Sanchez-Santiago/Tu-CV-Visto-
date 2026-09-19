@@ -3,7 +3,6 @@ import {
   RefreshCw,
   Send,
   CheckCircle2,
-  XCircle,
   AlertTriangle,
   Target,
   BarChart3,
@@ -15,6 +14,7 @@ import {
 import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
 import type { NavView } from "@/src/components/layout/Sidebar";
+import { useFirmas } from "@/src/hooks/useFirmas";
 import type {
   ResumenSincronizacion,
   ResumenAnalisisIA,
@@ -23,7 +23,6 @@ import type {
 
 interface EstrategiaViewProps {
   renovaciones: import("@/src/lib/api/client").RenovacionCandidata[];
-  revisiones: import("@/src/lib/api/client").RevisionRechazoCandidata[];
   estadisticas: import("@/src/lib/api/client").EstadisticasEstrategia | null;
   cargando: boolean;
   error: string | null;
@@ -31,8 +30,8 @@ interface EstrategiaViewProps {
   onAnalizar: () => Promise<ResumenAnalisisIA>;
   onRenovar: (
     items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
+    firmas?: number[],
   ) => Promise<unknown>;
-  onConfirmarRechazo: (postulacionId: number) => Promise<void>;
   onNavigate: (view: NavView) => void;
 }
 
@@ -55,14 +54,12 @@ const tipoSugeridoLabels: Record<string, string> = {
 
 export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
   renovaciones,
-  revisiones,
   estadisticas,
   cargando,
   error,
   onSincronizar,
   onAnalizar,
   onRenovar,
-  onConfirmarRechazo,
   onNavigate,
 }) => {
   const [sincronizando, setSincronizando] = useState(false);
@@ -81,7 +78,15 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
     Record<number, { asunto: string; cuerpo: string }>
   >({});
 
-  const [confirmando, setConfirmando] = useState<number | null>(null);
+  const firmas = useFirmas();
+  const [incluirFirma, setIncluirFirma] = useState<boolean>(true);
+  const [firmaSeleccionadaId, setFirmaSeleccionadaId] = useState<string>("");
+
+  React.useEffect(() => {
+    if (!firmaSeleccionadaId && firmas.data.length > 0) {
+      setFirmaSeleccionadaId(String(firmas.data[0].id));
+    }
+  }, [firmas.data, firmaSeleccionadaId]);
 
   const toggleSeleccion = (id: number) => {
     setSeleccionados((prev) => {
@@ -158,7 +163,11 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
         setMensaje({ tipo: "err", texto: "Seleccioná al menos una renovación." });
         return;
       }
-      const resultado = await onRenovar(items);
+      const firmasIds =
+        incluirFirma && firmaSeleccionadaId
+          ? [Number(firmaSeleccionadaId)]
+          : undefined;
+      const resultado = await onRenovar(items, firmasIds);
       const enviados =
         typeof resultado === "object" && resultado !== null
           ? Number((resultado as { enviados?: number }).enviados ?? 1)
@@ -169,18 +178,6 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
       setMensaje({ tipo: "err", texto: mensajeError(e) });
     } finally {
       setEnviando(false);
-    }
-  };
-
-  const handleConfirmarRechazo = async () => {
-    if (confirmando === null) return;
-    try {
-      await onConfirmarRechazo(confirmando);
-      setConfirmando(null);
-      setMensaje({ tipo: "ok", texto: "Rechazo confirmado: la postulación se cerró." });
-    } catch (e) {
-      setConfirmando(null);
-      setMensaje({ tipo: "err", texto: mensajeError(e) });
     }
   };
 
@@ -335,6 +332,48 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
           </Button>
         </div>
 
+        {/* Selector de firma para envíos en lote */}
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-[#101412] border border-[#222A26]">
+          {firmas.data.length > 0 ? (
+            <>
+              <label className="flex items-center gap-2 text-xs text-[#A7B0AA] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={incluirFirma}
+                  onChange={(e) => setIncluirFirma(e.target.checked)}
+                  className="rounded accent-[#22C55E]"
+                />
+                Incluir firma
+              </label>
+              {incluirFirma && (
+                <select
+                  value={firmaSeleccionadaId}
+                  onChange={(e) => setFirmaSeleccionadaId(e.target.value)}
+                  className="text-xs bg-[#141817] border border-[#222A26] text-[#F2F5F3] rounded-lg px-2 py-1 focus:outline-none focus:border-[#22C55E]"
+                >
+                  {firmas.data.map((f) => (
+                    <option key={f.id} value={String(f.id)}>
+                      {f.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-[#69736D]">
+              No tenés firmas guardadas.{" "}
+              <button
+                type="button"
+                onClick={() => onNavigate("configuracion")}
+                className="text-[#22C55E] hover:text-[#4ADE80] font-medium underline-offset-2 hover:underline cursor-pointer"
+              >
+                Creá una firma en Ajustes
+              </button>{" "}
+              para incluirla en los envíos.
+            </p>
+          )}
+        </div>
+
         {cargando ? (
           <p className="text-xs text-[#69736D] animate-pulse">Cargando renovaciones...</p>
         ) : renovaciones.length === 0 ? (
@@ -441,64 +480,6 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
             })}
           </div>
         )}
-      </div>
-
-      {/* Rechazos detectados */}
-      <div className="skeuo-surface p-5 space-y-4">
-        <div>
-          <h3 className="text-sm font-semibold text-[#F2F5F3] flex items-center gap-2">
-            <XCircle className="w-4 h-4 text-rose-400" /> Rechazos detectados
-          </h3>
-          <p className="text-xs text-[#A7B0AA] mt-0.5">
-            Emails recibidos que parecen un rechazo. Confirmá para cerrar la postulación.
-          </p>
-        </div>
-
-        {revisiones.length === 0 ? (
-          <p className="text-xs text-[#69736D] py-2">No hay rechazos pendientes de confirmar.</p>
-        ) : (
-          <div className="space-y-2.5">
-            {revisiones.map((r) => (
-              <div
-                key={r.postulacion_id}
-                className="rounded-xl border border-rose-500/20 bg-rose-500/[0.03] p-3.5 flex flex-wrap items-start justify-between gap-3"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-semibold text-[#F2F5F3]">{r.empresa}</h4>
-                    <span className="text-xs text-[#69736D]">—</span>
-                    <span className="text-xs text-[#A7B0AA]">{r.puesto}</span>
-                  </div>
-                  <p className="text-xs text-[#A7B0AA] mt-1 line-clamp-2">
-                    {r.asunto && <strong className="text-[#D6DCD8]">"{r.asunto}"</strong>}{" "}
-                    {r.snippet}
-                  </p>
-                  <p className="text-[11px] text-[#69736D] mt-1">Recibido: {r.fecha}</p>
-                </div>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => setConfirmando(r.postulacion_id)}
-                  leftIcon={<XCircle className="w-3.5 h-3.5" />}
-                >
-                  Confirmar rechazo
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <p className="text-[11px] text-[#69736D]">
-          ¿Ves algo que no es un rechazo? Revisá la postulación en{" "}
-          <button
-            type="button"
-            className="text-[#22C55E] underline underline-offset-2 cursor-pointer"
-            onClick={() => onNavigate("postulaciones")}
-          >
-            Postulaciones
-          </button>
-          .
-        </p>
       </div>
 
       {/* Estadísticas rápidas */}
@@ -675,29 +656,6 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
             )}
           </div>
         )}
-      </Modal>
-
-      {/* Confirm dialog rechezo */}
-      <Modal
-        isOpen={confirmando !== null}
-        onClose={() => setConfirmando(null)}
-        title="Confirmar rechazo"
-        description="Esta acción marcará la postulación como rechazada."
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-[#A7B0AA] leading-relaxed">
-            ¿Estás seguro? El estado cambiará a <strong className="text-[#F2F5F3]">rechazado</strong> y
-            dejará de aparecer en las renovaciones sugeridas.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setConfirmando(null)}>
-              Cancelar
-            </Button>
-            <Button variant="danger" onClick={handleConfirmarRechazo}>
-              Confirmar rechazo
-            </Button>
-          </div>
-        </div>
       </Modal>
     </div>
   );

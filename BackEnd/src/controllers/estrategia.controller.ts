@@ -21,7 +21,11 @@ export const EstrategiaController = {
 
   renovar: asyncHandler(async (req: Request, res: Response) => {
     const input = req.body as RenovarInput;
-    const resultado = await EstrategiaService.renovar(req.usuarioId!, input.items);
+    const resultado = await EstrategiaService.renovar(
+      req.usuarioId!,
+      input.items,
+      input.firmas,
+    );
     res.json({ ok: true, data: resultado });
   }),
 

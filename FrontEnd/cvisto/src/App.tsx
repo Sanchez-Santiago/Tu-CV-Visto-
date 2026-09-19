@@ -23,6 +23,7 @@ import { useEmpresasActions } from "@/src/hooks/useEmpresasActions";
 import { useContactosActions } from "@/src/hooks/useContactosActions";
 import { useEmailsActions } from "@/src/hooks/useEmailsActions";
 import { useEstrategiaActions } from "@/src/hooks/useEstrategiaActions";
+import { useTheme } from "@/src/hooks/useTheme";
 
 import type { Usuario } from "@/src/types/schemas";
 
@@ -48,6 +49,7 @@ import { capturarTokenOAuth } from "@/src/lib/auth";
 import { exportarJson } from "@/src/lib/exportar";
 
 function AppContent() {
+  useTheme();
   const { success, error } = useToast();
 
   const auth = useAuth();
@@ -100,7 +102,6 @@ function AppContent() {
     sincronizar: estrategia.sincronizar,
     analizar: estrategia.analizar,
     renovar: estrategia.renovar,
-    confirmarRechazo: estrategia.confirmarRechazo,
     refrescarPostulaciones: postulaciones.refrescar,
     refrescarEmails: emails.refrescar,
     refrescarSeguimientos: seguimientos.refrescar,
@@ -156,8 +157,8 @@ function AppContent() {
   };
 
   const pendingTasks = seguimientos.data.filter((s) => s.enviado === 0).length;
-  const activeApps = postulaciones.data.filter(
-    (p) => p.estado === "pendiente" || p.estado === "en_proceso" || p.estado === "entrevista"
+  const postulacionesCount = postulaciones.data.filter(
+    (p) => p.estado !== "rechazado" && p.estado !== "cancelado"
   ).length;
 
   return (
@@ -173,7 +174,7 @@ function AppContent() {
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
         pendingFollowupsCount={pendingTasks}
-        activeAppsCount={activeApps}
+        postulacionesCount={postulacionesCount}
       />
 
       {/* Main Content Viewport */}
@@ -218,6 +219,8 @@ function AppContent() {
             <ApplicationsView
               postulaciones={postulaciones.data}
               empresas={empresas.data}
+              emails={emails.data}
+              firmas={firmas.data}
               onSelectApplication={apps.setSelectedApplication}
               onEditApplication={apps.abrirEdicion}
               onDeleteApplication={apps.eliminar}
@@ -225,6 +228,7 @@ function AppContent() {
               onOpenNewModal={apps.abrirNuevo}
               searchQuery={globalSearch}
               onSearchChange={setGlobalSearch}
+              onComposeEmail={compose.abrirComposeConPrefill}
             />
           )}
 
@@ -245,9 +249,12 @@ function AppContent() {
             <ContactsView
               contactos={contactos.data}
               empresas={empresas.data}
+              emails={emails.data}
+              firmas={firmas.data}
               onCreateContacto={contactosActions.crear}
               onDeleteContacto={contactosActions.eliminar}
               onComposeTo={compose.abrirComposeParaContacto}
+              onComposeEmail={compose.abrirComposeConPrefill}
             />
           )}
 
@@ -277,14 +284,12 @@ function AppContent() {
           {currentView === "estrategia" && (
             <EstrategiaView
               renovaciones={estrategia.renovaciones}
-              revisiones={estrategia.revisiones}
               estadisticas={estrategia.estadisticas}
               cargando={estrategia.cargando}
               error={estrategia.error}
               onSincronizar={estrategiaActions.sincronizar}
               onAnalizar={estrategiaActions.analizar}
               onRenovar={estrategiaActions.renovar}
-              onConfirmarRechazo={estrategiaActions.confirmarRechazo}
               onNavigate={setCurrentView}
             />
           )}

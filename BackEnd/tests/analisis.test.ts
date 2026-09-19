@@ -81,6 +81,30 @@ describe('clasificarRespuesta', () => {
     ).toBe('contacto');
   });
 
+  it('trata las alertas de portales de empleo como "otro"', () => {
+    expect(
+      clasificarRespuesta({
+        asunto: 'Trabajo Copado: 5 empleos que te pueden interesar',
+        remitente: 'alertas@computrabajo.com',
+        cuerpo: 'Nuevas ofertas laborales para tu perfil. Postulate ahora.',
+      }),
+    ).toBe('otro');
+    expect(
+      clasificarRespuesta({
+        asunto: 'Nuevas ofertas que te pueden interesar',
+        remitente: 'jobalerts-noreply@linkedin.com',
+        cuerpo: 'Hay 12 nuevos empleos para vos.',
+      }),
+    ).toBe('otro');
+    expect(
+      clasificarRespuesta({
+        asunto: 'Job Alert: Backend Developer',
+        remitente: 'alerts@indeed.com',
+        cuerpo: 'New jobs matching your search.',
+      }),
+    ).toBe('otro');
+  });
+
   it('la palabra descartada en "rechazar" no confunde a "entrevista"', () => {
     expect(
       clasificarRespuesta({

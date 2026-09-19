@@ -14,6 +14,8 @@ export interface EmailParaAnalisis {
   id: string;
   asunto: string | null;
   remitente: string;
+  destinatario?: string;
+  es_enviado?: boolean;
   contenido: string;
 }
 
@@ -42,26 +44,33 @@ function esTipoValido(valor: unknown): valor is TipoRespuesta {
   );
 }
 
-function construirPrompt(emails: EmailParaAnalisis[]): string {
-  const bloques = emails
-    .map(
-      (email, i) =>
-        `[${i}]\nAsunto: ${email.asunto ?? '(sin asunto)'}\nRemitente: ${email.remitente}\nContenido:\n${email.contenido.slice(0, MAX_CONTENIDO_POR_EMAIL)}`,
-    )
-    .join('\n\n');
+function construirBloque(email: EmailParaAnalisis, i: number): string {
+  const direccion = email.es_enviado ? `→ ${email.destinatario ?? '?'}` : email.remitente;
+  const direccionLabel = email.es_enviado ? 'Destinatario' : 'Remitente';
+  const enviadoLabel = email.es_enviado ? ' [ENVIADO POR EL CANDIDATO]' : '';
+  return `[${i}]${enviadoLabel}\nAsunto: ${email.asunto ?? '(sin asunto)'}\n${direccionLabel}: ${direccion}\nContenido:\n${email.contenido.slice(0, MAX_CONTENIDO_POR_EMAIL)}`;
+}
 
-  return `Clasificá cada correo de respuesta a una postulación de trabajo.
+function construirPrompt(emails: EmailParaAnalisis[]): string {
+  const bloques = emails.map(construirBloque).join('\n\n');
+
+  return `Clasificá cada correo relacionado a una búsqueda laboral del candidato.
+
+REGLAS IMPORTANTES:
+1. Si el correo está marcado como [ENVIADO POR EL CANDIDATO], clasificalo como "contacto" (es el candidato enviando, no una respuesta de empresa).
+2. Ignorá alertas automáticas de portales de empleo (Computrabajo, LinkedIn Job Alerts, Indeed, Bumeran, etc.) — clasificalas como "otro".
+3. Ignorá newsletters, promociones, facturas o mensajes sin relación con un proceso de selección específico — clasificalos como "otro".
 
 Tipos posibles (elegí exactamente UNO por correo):
 - rechazo: la empresa comunica que no avanza con el candidato.
-- entrevista: invita a una entrevista o a continuar el proceso.
-- oferta: ofrece el puesto, condiciones o propuesta laboral.
+- entrevista: la empresa invita a una entrevista o a continuar el proceso.
+- oferta: la empresa ofrece el puesto o propuesta laboral concreta.
 - novedad: actualización de estado sin decisión final clara.
-- contacto: consulta o mensaje humano sin decisión.
-- otro: no aplica a una postulación.
+- contacto: el candidato escribe, o es un mensaje humano sin decisión de proceso.
+- otro: alerta de portal, newsletter, spam, o sin relación con una postulación.
 
 Respondé SOLO JSON, un array de objetos, una entrada por correo:
-[{"index": 0, "tipo": "rechazo", "confianza": 0-100, "motivo": "breve"}] 
+[{"index": 0, "tipo": "rechazo", "confianza": 0-100, "motivo": "breve"}]
 
 Correos:
 ${bloques}`;
@@ -184,23 +193,24 @@ export interface DeteccionPostulacionIA {
 }
 
 function construirPromptPostulacion(emails: EmailParaAnalisis[]): string {
-  const bloques = emails
-    .map(
-      (email, i) =>
-        `[${i}]\nAsunto: ${email.asunto ?? '(sin asunto)'}\nRemitente: ${email.remitente}\nContenido:\n${email.contenido.slice(0, MAX_CONTENIDO_POR_EMAIL)}`,
-    )
-    .join('\n\n');
+  const bloques = emails.map(construirBloque).join('\n\n');
 
   return `Determiná si cada correo corresponde a una postulación laboral (el candidato aplicó o está en un proceso de selección para un puesto concreto).
 
+PISTAS DE DIRECCIÓN:
+- Los correos marcados [ENVIADO POR EL CANDIDATO] son enviados por el propio candidato: en la enorme mayoría de los casos SON postulaciones (se postuló a una vacante o escribió al reclutador). Tratalos como postulación salvo que sea claramente un mensaje interno, una respuesta trivial o un tema sin relación laboral.
+- Los correos recibidos (sin esa marca) son postulaciones solo si una empresa o un reclutador confirma o avanza el proceso de una candidatura del candidato.
+
 Es una postulación si el correo:
+- es el propio candidato postulándose o enviando su CV a una vacante,
 - confirma o responde una candidatura/aplicación enviada,
-- invita a una entrevista, hace una oferta o comunica una decisión (avance/rechazo) de un proceso de selección,
-- es el propio candidato postulándose a una vacante (correo enviado).
+- invita a una entrevista, hace una oferta o comunica una decisión (avance/rechazo) de un proceso de selección.
 
-NO es una postulación si es: newsletter, promoción, factura, notificación automática de un sistema, mensaje personal o laboral genérico sin puesto concreto, correo vacío.
+NO es una postulación (es_postulacion = false) si es:
+- alertas automáticas de portales de empleo (por ejemplo "Trabajo Copado" de Computrabajo, "Nuevas ofertas que te pueden interesar", LinkedIn Job Alerts, Indeed, Bumeran, ZonaJobs, Glassdoor, etc.), aunque mencionen muchos puestos;
+- newsletters, promociones, facturas, notificaciones de sistemas, mensajes personales o laborales genéricos sin un puesto concreto, correos vacíos.
 
-Si es una postulación, extraé el PUESTO (título del puesto al que refiere); si no se menciona ningún puesto devolvé null.
+Si es una postulación, extraé el PUESTO (título del puesto al que refiere, tomado del asunto o del contenido). Si no se menciona ningún puesto concreto, devolvé null.
 
 Respondé SOLO JSON, un array de objetos, una entrada por correo:
 [{"index": 0, "es_postulacion": true, "puesto": "Desarrollador Backend", "confianza": 0-100, "motivo": "breve"}]

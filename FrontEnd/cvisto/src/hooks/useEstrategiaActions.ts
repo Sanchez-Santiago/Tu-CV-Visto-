@@ -10,8 +10,15 @@ import { useToast } from "@/src/components/ui/Toast";
 export function useEstrategiaActions(opts: {
   sincronizar: (dias: number) => Promise<ResumenSincronizacion>;
   analizar: () => Promise<ResumenAnalisisIA>;
-  renovar: (items: { postulacion_id: number; asunto?: string; cuerpo?: string }[]) => Promise<ResultadoRenovar>;
-  confirmarRechazo: (postulacionId: number) => Promise<void>;
+  renovar: (
+    items: {
+      postulacion_id: number;
+      asunto?: string;
+      cuerpo?: string;
+      firmas?: number[];
+    }[],
+    firmas?: number[],
+  ) => Promise<ResultadoRenovar>;
   refrescarPostulaciones: () => Promise<void>;
   refrescarEmails: () => Promise<void>;
   refrescarSeguimientos: () => Promise<void>;
@@ -39,8 +46,16 @@ export function useEstrategiaActions(opts: {
   );
 
   const renovar = useCallback(
-    async (items: { postulacion_id: number; asunto?: string; cuerpo?: string }[]) => {
-      return opts.renovar(items);
+    async (
+      items: {
+        postulacion_id: number;
+        asunto?: string;
+        cuerpo?: string;
+        firmas?: number[];
+      }[],
+      firmas?: number[],
+    ) => {
+      return opts.renovar(items, firmas);
     },
     [opts.renovar],
   );
@@ -89,13 +104,6 @@ export function useEstrategiaActions(opts: {
     }
   }, [analizar, success, error]);
 
-  const confirmarRechazo = useCallback(
-    async (postulacionId: number) => {
-      return opts.confirmarRechazo(postulacionId);
-    },
-    [opts.confirmarRechazo],
-  );
-
   const actualizarGlobal = useCallback(async () => {
     if (actualizando) return;
     setActualizando(true);
@@ -119,7 +127,6 @@ export function useEstrategiaActions(opts: {
     sincronizar,
     analizar: analizarIA,
     renovar,
-    confirmarRechazo,
     actualizarGlobal,
   };
 }

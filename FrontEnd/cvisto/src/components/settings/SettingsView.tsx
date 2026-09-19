@@ -22,6 +22,7 @@ import { useExperiencias } from "@/src/hooks/useExperiencias";
 import { useProyectos } from "@/src/hooks/useProyectos";
 import { useFirmas } from "@/src/hooks/useFirmas";
 import { useCategorias } from "@/src/hooks/useCategorias";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ExperienciaFormModal } from "./ExperienciaFormModal";
 import { ProyectoFormModal } from "./ProyectoFormModal";
 import { FirmaFormModal } from "./FirmaFormModal";
@@ -53,7 +54,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [linkedin, setLinkedin] = useState(usuario.linkedin ?? "");
   const [sitioWeb, setSitioWeb] = useState(usuario.sitioWeb ?? "");
   const [cv, setCv] = useState(usuario.cv ?? "");
-  const [themePreference, setThemePreference] = useState<"dark" | "light" | "system">("dark");
+  const { theme: themePreference, setTheme: setThemePreference } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
 
   const experiencias = useExperiencias();

@@ -199,17 +199,6 @@ function escaparTextoPlano(cuerpo: string): string {
   return cuerpo.replace(/\r?\n/g, '\r\n');
 }
 
-function escaparAtributo(texto: string): string {
-  return texto.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
-
-function escaparHtml(texto: string): string {
-  return texto
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
 const TEXTO_PLANO_PART = [
   'Content-Type: text/plain; charset="UTF-8"',
   'Content-Transfer-Encoding: 8bit',
@@ -269,11 +258,15 @@ function construirMensajeRaw(
   let cuerpoMulti: string[];
 
   if (!tieneAdjuntos && !tieneImagenes) {
-    cabeceraContenido = 'Content-Type: multipart/alternative; boundary="' + boundaryAlternativa + '"';
-    cuerpoMulti = [``, ...parteAlternativa.slice(1)];
+    cabeceraContenido =
+      'Content-Type: multipart/alternative; boundary="' +
+      boundaryAlternativa +
+      '"';
+    cuerpoMulti = parteAlternativa.slice(2);
   } else if (tieneAdjuntos) {
     const boundaryMixto = `----=_cvisto_mixed_${randomBytes(8).toString('hex')}`;
-    cabeceraContenido = 'Content-Type: multipart/mixed; boundary="' + boundaryMixto + '"';
+    cabeceraContenido =
+      'Content-Type: multipart/mixed; boundary="' + boundaryMixto + '"';
     cuerpoMulti = [`--${boundaryMixto}`];
     if (tieneImagenes) {
       const boundaryRelacionado = `----=_cvisto_related_${randomBytes(8).toString('hex')}`;
@@ -289,7 +282,7 @@ function construirMensajeRaw(
         const firma = (firmasImagenes ?? [])[i] as FirmaImagenGmail;
         cuerpoMulti.push(
           `--${boundaryRelacionado}`,
-          `Content-Type: ${firma.mimeType}; name="firma-${i + 1}"`,
+          `Content-Type: ${firma.mimeType || 'image/png'}; name="firma-${i + 1}"`,
           `Content-ID: <${firma.contentId}>`,
           'Content-Disposition: inline; filename="firma-' + (i + 1) + '"',
           'Content-Transfer-Encoding: base64',
@@ -318,7 +311,8 @@ function construirMensajeRaw(
     cuerpoMulti.push(`--${boundaryMixto}--`);
   } else {
     const boundaryRelacionado = `----=_cvisto_related_${randomBytes(8).toString('hex')}`;
-    cabeceraContenido = 'Content-Type: multipart/related; boundary="' + boundaryRelacionado + '"';
+    cabeceraContenido =
+      'Content-Type: multipart/related; boundary="' + boundaryRelacionado + '"';
     cuerpoMulti = [`--${boundaryRelacionado}`];
     for (const parte of parteAlternativa) {
       cuerpoMulti.push(parte);
@@ -327,7 +321,7 @@ function construirMensajeRaw(
       const firma = (firmasImagenes ?? [])[i] as FirmaImagenGmail;
       cuerpoMulti.push(
         `--${boundaryRelacionado}`,
-        `Content-Type: ${firma.mimeType}; name="firma-${i + 1}"`,
+        `Content-Type: ${firma.mimeType || 'image/png'}; name="firma-${i + 1}"`,
         `Content-ID: <${firma.contentId}>`,
         'Content-Disposition: inline; filename="firma-' + (i + 1) + '"',
         'Content-Transfer-Encoding: base64',
@@ -338,7 +332,13 @@ function construirMensajeRaw(
     cuerpoMulti.push(`--${boundaryRelacionado}--`);
   }
 
-  return [...cabecerasComunes, 'MIME-Version: 1.0', cabeceraContenido, ...cuerpoMulti].join('\r\n');
+  return [
+    ...cabecerasComunes,
+    'MIME-Version: 1.0',
+    cabeceraContenido,
+    '',
+    ...cuerpoMulti,
+  ].join('\r\n');
 }
 
 function cabecerasDeInteres(

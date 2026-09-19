@@ -100,6 +100,21 @@ async function registrarEmailSaliente(postulacionId: number): Promise<void> {
   });
 }
 
+async function crearFirmaImagen(enlace: string): Promise<number> {
+  const res = await request(app)
+    .post('/api/firmas')
+    .set(auth())
+    .send({
+      nombre: 'Firma Imagen',
+      tipo: 'imagen',
+      imagen_mime: 'image/png',
+      imagen_base64:
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      enlace,
+    });
+  return res.body.data.id as number;
+}
+
 describe('POST /api/estrategia/renovar', () => {
   it('requiere autenticación', async () => {
     const res = await request(app)
@@ -165,6 +180,40 @@ describe('POST /api/estrategia/renovar', () => {
         e.enviado === 1 && e.asunto === 'Asunto personalizado',
     );
     expect(ultimo).toBeDefined();
+  });
+
+  it('incluye la firma de imagen con enlace normalizado en el envío', async () => {
+    const empresa = await crearEmpresa('Renovar Firma');
+    const postulacionId = await crearPostulacion(empresa);
+    await registrarEmailSaliente(postulacionId);
+
+    const firmaId = await crearFirmaImagen('https://linkedin.com/in/test');
+    // Enlace sin esquema (dato viejo o cargado a mano) para verificar la normalización.
+    await db.execute({
+      sql: 'UPDATE firmas SET enlace = ? WHERE id = ?',
+      args: ['www.linkedin.com/in/test', firmaId],
+    });
+
+    const res = await request(app)
+      .post('/api/estrategia/renovar')
+      .set(auth())
+      .send({ items: [{ postulacion_id: postulacionId }], firmas: [firmaId] });
+
+    expect(res.status).toBe(200);
+
+    const emails = await request(app).get(
+      `/api/emails?postulacion_id=${postulacionId}`,
+    );
+    const enviado = emails.body.data.find(
+      (e: { enviado: number; cuerpo_html: string | null }) =>
+        e.enviado === 1 && (e.cuerpo_html ?? '').includes('cid:firma_'),
+    );
+    expect(enviado).toBeDefined();
+    expect(enviado.cuerpo_html).toContain(`cid:firma_${firmaId}`);
+    expect(enviado.cuerpo_html).toContain('target="_blank"');
+    expect(enviado.cuerpo_html).toContain(
+      'href="https://www.linkedin.com/in/test"',
+    );
   });
 
   it('devuelve 400 si no hay destinatario para la postulación', async () => {

@@ -4,7 +4,8 @@ import {
   LayoutList, 
   LayoutGrid, 
   Kanban,
-  Briefcase
+  Briefcase,
+  Mail
 } from "lucide-react";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
@@ -17,10 +18,15 @@ import { ApplicationTable } from "./ApplicationTable";
 import { ApplicationCard } from "./ApplicationCard";
 import { Badge } from "@/src/components/ui/Badge";
 import { nombreEmpresa } from "@/src/lib/nombres";
+import { LinkedEmailsModal } from "@/src/components/emails/LinkedEmailsModal";
+import type { Email } from "@/src/schemas/email";
+import type { Firma } from "@/src/schemas/firma";
 
 interface ApplicationsViewProps {
   postulaciones: Postulacion[];
   empresas: Empresa[];
+  emails?: Email[];
+  firmas?: Firma[];
   onSelectApplication: (p: Postulacion) => void;
   onEditApplication: (p: Postulacion) => void;
   onDeleteApplication: (id: string) => void;
@@ -28,11 +34,18 @@ interface ApplicationsViewProps {
   onOpenNewModal: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onComposeEmail?: (prefill: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+  }) => void;
 }
 
 export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   postulaciones,
   empresas,
+  emails = [],
+  firmas = [],
   onSelectApplication,
   onEditApplication,
   onDeleteApplication,
@@ -40,9 +53,11 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   onOpenNewModal,
   searchQuery,
   onSearchChange,
+  onComposeEmail,
 }) => {
   const [selectedStatus, setSelectedStatus] = useState<string>("todos");
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
+  const [linkedEmailsPostulacion, setLinkedEmailsPostulacion] = useState<Postulacion | null>(null);
 
   const filterTabs = [
     { id: "todos", label: "Todos", count: postulaciones.length },
@@ -253,9 +268,22 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
                         <span className="font-bold text-xs text-[#F2F5F3] group-hover:text-[#4ADE80] transition-colors">
                           {empresa}
                         </span>
-                        <span className="text-[10px] text-[#69736D]">
-                          {(p.fechaPostulacion ?? "").slice(5)}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLinkedEmailsPostulacion(p);
+                            }}
+                            className="p-1 rounded hover:bg-[#1C2320] text-[#69736D] hover:text-[#22C55E] transition-colors"
+                            title="Ver emails vinculados"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-[10px] text-[#69736D]">
+                            {(p.fechaPostulacion ?? "").slice(5)}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-xs text-[#A7B0AA] mt-1 font-medium line-clamp-1">
                         {p.puesto}
@@ -285,6 +313,7 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
               onEdit={onEditApplication}
               onDelete={onDeleteApplication}
               onQuickStatusChange={onQuickStatusChange}
+              onViewEmails={setLinkedEmailsPostulacion}
             />
           ))}
         </div>
@@ -297,8 +326,34 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
           onEdit={onEditApplication}
           onDelete={onDeleteApplication}
           onQuickStatusChange={onQuickStatusChange}
+          onViewEmails={setLinkedEmailsPostulacion}
         />
       )}
+
+      {/* Modal de emails vinculados */}
+      <LinkedEmailsModal
+        isOpen={Boolean(linkedEmailsPostulacion)}
+        onClose={() => setLinkedEmailsPostulacion(null)}
+        title={
+          linkedEmailsPostulacion
+            ? `${linkedEmailsPostulacion.puesto} — ${nombreEmpresa(
+                empresas,
+                linkedEmailsPostulacion.empresaId,
+              )}`
+            : ""
+        }
+        subtitle="Correos asociados a este proceso de postulación"
+        firmas={firmas}
+        emails={
+          linkedEmailsPostulacion
+            ? emails.filter(
+                (e) =>
+                  Number(e.postulacionId) === Number(linkedEmailsPostulacion.id),
+              )
+            : []
+        }
+        onComposeEmail={onComposeEmail}
+      />
     </div>
   );
 };

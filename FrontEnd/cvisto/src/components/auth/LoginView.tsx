@@ -1,5 +1,5 @@
 import React from "react";
-import { Briefcase } from "lucide-react";
+import { Logo } from "@/src/components/ui/Logo";
 
 interface LoginViewProps {
   onLogin: () => void;
@@ -9,13 +9,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen bg-[#080A09] text-[#F2F5F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md skeuo-surface p-8 flex flex-col items-center text-center">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#16A34A] to-[#4ADE80] flex items-center justify-center mb-6">
-          <Briefcase className="w-7 h-7 text-black" />
+        <div className="mb-6 flex justify-center">
+          <Logo size="lg" />
         </div>
-
-        <h1 className="text-2xl font-bold tracking-tight font-['Inter']">
-          CVisto
-        </h1>
         <p className="text-sm text-[#A7B0AA] mt-1.5 mb-8">
           Gestioná tus postulaciones, seguimientos estratégicos y contactos en
           un solo lugar.

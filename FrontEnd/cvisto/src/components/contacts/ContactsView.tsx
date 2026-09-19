@@ -8,13 +8,23 @@ import { Input } from "@/src/components/ui/Input";
 import { Select } from "@/src/components/ui/Select";
 import { SectionHeader } from "@/src/components/ui/SectionHeader";
 import { SearchInput } from "@/src/components/ui/SearchInput";
+import { LinkedEmailsModal } from "@/src/components/emails/LinkedEmailsModal";
+import type { Email } from "@/src/schemas/email";
+import type { Firma } from "@/src/schemas/firma";
 
 interface ContactsViewProps {
   contactos: Contacto[];
   empresas: Empresa[];
+  emails?: Email[];
+  firmas?: Firma[];
   onCreateContacto: (data: ContactoSinId) => Promise<void>;
   onDeleteContacto: (id: string) => void;
   onComposeTo?: (email: string) => void;
+  onComposeEmail?: (prefill: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+  }) => void;
 }
 
 const sinEmpresa = { value: "", label: "Seleccionar empresa..." };
@@ -22,12 +32,16 @@ const sinEmpresa = { value: "", label: "Seleccionar empresa..." };
 export const ContactsView: React.FC<ContactsViewProps> = ({
   contactos,
   empresas,
+  emails = [],
+  firmas = [],
   onCreateContacto,
   onDeleteContacto,
   onComposeTo,
+  onComposeEmail,
 }) => {
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [linkedEmailsContacto, setLinkedEmailsContacto] = useState<Contacto | null>(null);
 
   const [empresaId, setEmpresaId] = useState<string>("");
   const [nombre, setNombre] = useState("");
@@ -140,16 +154,27 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
                   >
                     {item.email}
                   </a>
-                  {onComposeTo && (
+                  <div className="ml-auto flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => onComposeTo(item.email)}
-                      className="ml-auto text-[11px] font-medium text-[#22C55E] hover:text-[#4ADE80] bg-[#22C55E]/10 hover:bg-[#22C55E]/20 border border-[#22C55E]/30 rounded-md px-2 py-1 transition-colors cursor-pointer shrink-0"
-                      title="Escribir email"
+                      onClick={() => setLinkedEmailsContacto(item)}
+                      className="text-[11px] font-medium text-[#A7B0AA] hover:text-[#F2F5F3] bg-[#181D1B] hover:bg-[#202723] border border-white/[0.08] rounded-md px-2 py-1 transition-colors cursor-pointer flex items-center gap-1"
+                      title="Ver correos vinculados a este contacto"
                     >
-                      Escribir
+                      <Mail className="w-3 h-3 text-[#22C55E]" />
+                      <span>Ver emails</span>
                     </button>
-                  )}
+                    {onComposeTo && (
+                      <button
+                        type="button"
+                        onClick={() => onComposeTo(item.email)}
+                        className="text-[11px] font-medium text-[#22C55E] hover:text-[#4ADE80] bg-[#22C55E]/10 hover:bg-[#22C55E]/20 border border-[#22C55E]/30 rounded-md px-2 py-1 transition-colors cursor-pointer"
+                        title="Escribir email"
+                      >
+                        Escribir
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {item.observaciones && (
@@ -231,6 +256,46 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
           </div>
         </form>
       </Modal>
+
+      {/* Modal de emails vinculados al contacto */}
+      <LinkedEmailsModal
+        isOpen={Boolean(linkedEmailsContacto)}
+        onClose={() => setLinkedEmailsContacto(null)}
+        title={
+          linkedEmailsContacto
+            ? `${linkedEmailsContacto.nombre} (${linkedEmailsContacto.email})`
+            : ""
+        }
+        subtitle={
+          linkedEmailsContacto
+            ? `Correos intercambiados con este contacto en ${nombreEmpresa(
+                linkedEmailsContacto.empresaId,
+              )}`
+            : undefined
+        }
+        emails={
+          linkedEmailsContacto
+            ? emails.filter(
+                (e) =>
+                  e.remitente
+                    ?.toLowerCase()
+                    .includes(linkedEmailsContacto.email.toLowerCase()) ||
+                  e.destinatario
+                    ?.toLowerCase()
+                    .includes(linkedEmailsContacto.email.toLowerCase()),
+              )
+            : []
+        }
+        onComposeEmail={
+          onComposeTo
+            ? (prefill) =>
+                onComposeTo(
+                  prefill.destinatario || linkedEmailsContacto?.email || "",
+                )
+            : onComposeEmail
+        }
+        firmas={firmas}
+      />
     </div>
   );
 };

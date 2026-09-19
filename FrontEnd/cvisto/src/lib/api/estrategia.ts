@@ -66,15 +66,6 @@ export interface RenovacionCandidata {
   destinatario: string | null;
 }
 
-export interface RevisionRechazoCandidata {
-  postulacion_id: number;
-  empresa: string;
-  puesto: string;
-  asunto: string | null;
-  fecha: string;
-  snippet: string;
-}
-
 export interface MailPorMes {
   mes: string;
   enviados: number;
@@ -118,11 +109,20 @@ export const estrategiaApi = {
   },
 
   async renovar(
-    items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
+    items: {
+      postulacion_id: number;
+      asunto?: string;
+      cuerpo?: string;
+      firmas?: number[];
+    }[],
+    firmas?: number[],
   ): Promise<ResultadoRenovar> {
     const data = await request<Record<string, unknown>>("/estrategia/renovar", {
       method: "POST",
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({
+        items,
+        ...(firmas?.length ? { firmas } : {}),
+      }),
     });
     return {
       enviados: Number(data.enviados),
@@ -130,20 +130,6 @@ export const estrategiaApi = {
         ? data.emails.map(emailFila)
         : [],
     };
-  },
-
-  async revisionRechazos(): Promise<RevisionRechazoCandidata[]> {
-    const data = await request<Record<string, unknown>[]>(
-      "/estrategia/revision-rechazos",
-    );
-    return data as unknown as RevisionRechazoCandidata[];
-  },
-
-  async confirmarRechazo(postulacion_id: number): Promise<void> {
-    await request("/estrategia/confirmar-rechazo", {
-      method: "POST",
-      body: JSON.stringify({ postulacion_id }),
-    });
   },
 
   async estadisticas(): Promise<EstadisticasEstrategia> {

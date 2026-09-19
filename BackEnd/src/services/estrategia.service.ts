@@ -218,7 +218,13 @@ export const EstrategiaService = {
 
   async renovar(
     usuarioId: number,
-    items: { postulacion_id: number; asunto?: string; cuerpo?: string }[],
+    items: {
+      postulacion_id: number;
+      asunto?: string;
+      cuerpo?: string;
+      firmas?: number[];
+    }[],
+    firmasGlobales?: number[],
   ): Promise<{ enviados: number; emails: EmailRow[] }> {
     const hoy = hoyDia();
     const emails: EmailRow[] = [];
@@ -258,6 +264,7 @@ export const EstrategiaService = {
         destinatario,
         asunto: item.asunto?.trim() || plantilla.asunto,
         cuerpo: item.cuerpo?.trim() || plantilla.cuerpo,
+        firmas: item.firmas ?? firmasGlobales,
         tipo: 'seguimiento',
         tipo_seguimiento: tipo,
         crear_seguimiento: true,

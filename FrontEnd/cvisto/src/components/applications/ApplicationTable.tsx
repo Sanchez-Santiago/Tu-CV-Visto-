@@ -1,5 +1,5 @@
 import React from "react";
-import { MapPin, Calendar, Edit, Trash2 } from "lucide-react";
+import { MapPin, Calendar, Edit, Trash2, Mail } from "lucide-react";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
 import type { EstadoPostulacion } from "@/src/schemas/common";
@@ -13,6 +13,7 @@ interface ApplicationTableProps {
   onEdit: (p: Postulacion) => void;
   onDelete: (id: string) => void;
   onQuickStatusChange: (id: string, newEstado: EstadoPostulacion) => void;
+  onViewEmails?: (p: Postulacion) => void;
 }
 
 export const ApplicationTable: React.FC<ApplicationTableProps> = ({
@@ -22,6 +23,7 @@ export const ApplicationTable: React.FC<ApplicationTableProps> = ({
   onEdit,
   onDelete,
   onQuickStatusChange,
+  onViewEmails,
 }) => {
   return (
     <div className="skeuo-surface overflow-hidden">
@@ -101,7 +103,18 @@ export const ApplicationTable: React.FC<ApplicationTableProps> = ({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-end gap-1">
+                      {onViewEmails && (
+                        <button
+                          type="button"
+                          onClick={() => onViewEmails(p)}
+                          className="p-1.5 rounded hover:bg-[#1C2320] text-[#69736D] hover:text-[#22C55E] transition-colors"
+                          title="Ver emails vinculados"
+                        >
+                          <Mail className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
+                        type="button"
                         onClick={() => onEdit(p)}
                         className="p-1.5 rounded hover:bg-[#1C2320] text-[#69736D] hover:text-[#F2F5F3] transition-colors"
                         title="Editar"
@@ -109,6 +122,7 @@ export const ApplicationTable: React.FC<ApplicationTableProps> = ({
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => onDelete(p.id)}
                         className="p-1.5 rounded hover:bg-[#2A1517] text-[#69736D] hover:text-rose-400 transition-colors"
                         title="Eliminar"

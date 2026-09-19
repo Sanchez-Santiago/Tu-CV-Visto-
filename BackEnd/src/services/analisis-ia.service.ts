@@ -59,13 +59,16 @@ const ESTADOS_ABIERTOS: readonly string[] = [
 ];
 
 const PALABRAS_POSTULACION: readonly string[] = [
+  'postul',
   'postulacion',
   'postulación',
+  'candidat',
   'candidatura',
   'curriculum',
   'hoja de vida',
   'vacante',
   'apply',
+  'aplicac',
   'aplicacion',
   'aplicación',
 ];
@@ -286,6 +289,8 @@ export const AnalisisIAService = {
                 id: String(email.id),
                 asunto: email.asunto,
                 remitente: email.remitente,
+                destinatario: email.destinatario,
+                es_enviado: email.enviado === 1,
                 contenido: email.contenido_resumen ?? '',
               })),
             )
