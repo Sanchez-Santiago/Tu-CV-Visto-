@@ -1,21 +1,43 @@
-<svg width="128" height="128" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="logoBg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#181F1B" />
-      <stop offset="1" stop-color="#0F1411" />
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141B16"/>
+      <stop offset="100%" stop-color="#0B100D"/>
     </linearGradient>
-    <linearGradient id="logoBorde" x1="6" y1="4" x2="22" y2="24" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4ADE80" />
-      <stop offset="1" stop-color="#16A34A" />
-    </linearGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22C55E" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="32" height="32" rx="8" fill="url(#logoBg)" />
-  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" stroke="#4ADE80" stroke-opacity="0.18" />
-  <rect x="6.5" y="5.5" width="14" height="18" rx="2.5" fill="#121714" stroke="url(#logoBorde)" stroke-width="1.6" />
-  <line x1="10" y1="9.5" x2="17" y2="9.5" stroke="#4ADE80" stroke-width="1.4" stroke-linecap="round" opacity="0.85" />
-  <line x1="10" y1="13" x2="14.5" y2="13" stroke="#A7B0AA" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
-  <line x1="10" y1="16" x2="16.5" y2="16" stroke="#A7B0AA" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
-  <line x1="10" y1="19" x2="13.5" y2="19" stroke="#A7B0AA" stroke-width="1.2" stroke-linecap="round" opacity="0.4" />
-  <circle cx="22" cy="22" r="6.5" fill="#22C55E" stroke="#0F1411" stroke-width="1" />
-  <path d="M19.2 22L21.1 23.9L25 20" stroke="#080A09" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="28" fill="url(#bgGrad)"/>
+  <!-- Subtle border -->
+  <rect x="0.75" y="0.75" width="126.5" height="126.5" rx="27.25" stroke="#22C55E" stroke-opacity="0.15" stroke-width="1.5"/>
+
+  <!-- Glow circle background -->
+  <circle cx="64" cy="64" r="48" fill="url(#glowGrad)"/>
+
+  <!-- Circle ring -->
+  <circle cx="64" cy="64" r="36" stroke="#22C55E" stroke-width="3.5" stroke-opacity="0.9" filter="url(#glow)"/>
+
+  <!-- Inner dark fill to make the circle look solid -->
+  <circle cx="64" cy="64" r="34" fill="#0F1712"/>
+
+  <!-- Bold checkmark -->
+  <path
+    d="M44 65 L57 78 L84 50"
+    stroke="#22C55E"
+    stroke-width="7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#glow)"
+  />
 </svg>

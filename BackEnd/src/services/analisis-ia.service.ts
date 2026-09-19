@@ -87,7 +87,9 @@ function esPostulacionPorKeywords(email: {
   contenido_resumen: string | null;
 }): boolean {
   if (email.enviado === 1) {
-    const texto = normalizarTexto(`${email.asunto ?? ''} ${email.remitente}`);
+    const texto = normalizarTexto(
+      `${email.asunto ?? ''} ${email.remitente} ${email.contenido_resumen ?? ''}`,
+    );
     return PALABRAS_POSTULACION.some((p) => texto.includes(normalizarTexto(p)));
   }
 
@@ -96,7 +98,12 @@ function esPostulacionPorKeywords(email: {
     remitente: email.remitente,
     cuerpo: email.contenido_resumen ?? '',
   });
-  return tipo === 'entrevista' || tipo === 'oferta' || tipo === 'rechazo';
+  return (
+    tipo === 'entrevista' ||
+    tipo === 'oferta' ||
+    tipo === 'rechazo' ||
+    tipo === 'novedad'
+  );
 }
 
 interface EmailPendiente {
@@ -326,7 +333,44 @@ export const AnalisisIAService = {
 
         const contraparte =
           email.enviado === 1 ? (email.destinatario ?? '') : email.remitente;
-        const empresaId = await AgendaService.agendarDesdeCorreo(contraparte);
+
+        let empresaId: number | null = null;
+        if (deteccionIA?.empresa) {
+          const empNombre = deteccionIA.empresa.trim();
+          const existenteEmp = empresasList.find(
+            (e) => e.nombre.toLowerCase() === empNombre.toLowerCase(),
+          );
+          if (existenteEmp) {
+            empresaId = existenteEmp.id;
+          } else {
+            const nuevaEmp = await EmpresaModel.crear({ nombre: empNombre });
+            empresaId = nuevaEmp.id;
+            empresasList.push({ id: nuevaEmp.id, nombre: nuevaEmp.nombre });
+            nombreEmpresa.set(nuevaEmp.id, nuevaEmp.nombre);
+          }
+        }
+
+        if (empresaId === null) {
+          empresaId = await AgendaService.agendarDesdeCorreo(contraparte);
+        }
+
+        if (empresaId === null) {
+          const dom = dominioSinTld(contraparte);
+          if (dom && dom.length > 2) {
+            const empNom = dom.charAt(0).toUpperCase() + dom.slice(1);
+            const existenteEmp = empresasList.find(
+              (e) => e.nombre.toLowerCase() === empNom.toLowerCase(),
+            );
+            if (existenteEmp) {
+              empresaId = existenteEmp.id;
+            } else {
+              const nuevaEmp = await EmpresaModel.crear({ nombre: empNom });
+              empresaId = nuevaEmp.id;
+              empresasList.push({ id: nuevaEmp.id, nombre: nuevaEmp.nombre });
+              nombreEmpresa.set(nuevaEmp.id, nuevaEmp.nombre);
+            }
+          }
+        }
 
         if (empresaId === null) {
           await EmailModel.actualizar(email.id, {
@@ -348,7 +392,34 @@ export const AnalisisIAService = {
         if (existente) {
           await EmailModel.actualizar(email.id, {
             postulacion_id: existente.id,
+            tipo_respuesta: tipoDetalle,
+            tipo_respuesta_fuente: fuente,
           });
+
+          let nuevoEstado: string | null = null;
+          const estadoAnterior = existente.estado;
+
+          if (email.enviado === 0) {
+            const objetivo = TRANSICIONES[tipoDetalle];
+            nuevoEstado =
+              objetivo && ESTADOS_ABIERTOS.includes(estadoAnterior)
+                ? objetivo
+                : tipoDetalle === 'novedad' && estadoAnterior === 'pendiente'
+                  ? 'en_proceso'
+                  : estadoAnterior;
+
+            await PostulacionModel.actualizar(existente.id, {
+              respondio: 1,
+              ultimo_contacto: email.fecha?.slice(0, 10) ?? null,
+              estado: nuevoEstado,
+            });
+            existente.estado = nuevoEstado;
+            existente.respondio = 1;
+            if (nuevoEstado !== estadoAnterior) {
+              resultado.estados_actualizados += 1;
+            }
+          }
+
           resultado.postulaciones_vinculadas += 1;
           resultado.detalle.push({
             email_id: email.id,
@@ -359,8 +430,8 @@ export const AnalisisIAService = {
               '',
             tipo_respuesta: tipoDetalle,
             snippet: this.generarSnippet(email.contenido_resumen ?? ''),
-            estado_anterior: null,
-            estado_nuevo: null,
+            estado_anterior: estadoAnterior,
+            estado_nuevo: nuevoEstado,
             fuente,
             vinculado_a_existente: true,
             puesto,

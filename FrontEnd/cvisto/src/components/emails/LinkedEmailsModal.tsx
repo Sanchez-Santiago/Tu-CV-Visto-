@@ -12,14 +12,10 @@ import {
 } from "lucide-react";
 import { Modal } from "@/src/components/ui/Modal";
 import { Button } from "@/src/components/ui/Button";
+import { EmailViewer } from "./EmailViewer";
 import type { Email } from "@/src/schemas/email";
 import type { Firma } from "@/src/schemas/firma";
-import {
-  esHtml,
-  normalizarHtml,
-  reemplazarCidPorDataUrl,
-  textoSinHtml,
-} from "@/src/lib/html";
+import { textoSinHtml } from "@/src/lib/html";
 
 interface LinkedEmailsModalProps {
   isOpen: boolean;
@@ -152,16 +148,6 @@ export const LinkedEmailsModal: React.FC<LinkedEmailsModalProps> = ({
               const badge = email.tipoRespuesta
                 ? tipoRespuestaBadges[email.tipoRespuesta]
                 : null;
-              const contenidoHtml = esHtml(email.cuerpoHtml)
-                ? email.cuerpoHtml ?? ""
-                : esHtml(email.contenidoResumen)
-                  ? email.contenidoResumen ?? ""
-                  : "";
-              const textoPlano = !contenidoHtml
-                ? email.cuerpoHtml ||
-                  email.contenidoResumen ||
-                  "(Sin contenido de texto disponible)"
-                : "";
 
               return (
                 <div
@@ -251,62 +237,14 @@ export const LinkedEmailsModal: React.FC<LinkedEmailsModalProps> = ({
 
                   {/* Cuerpo expandible del email */}
                   {isExpanded && (
-                    <div className="p-4 pt-2 border-t border-white/[0.06] bg-[#0E1210] space-y-3">
-                      <div className="text-[11px] text-[#A7B0AA] space-y-0.5 bg-[#121614] p-2.5 rounded-lg border border-white/[0.04]">
-                        <p>
-                          <span className="text-[#F2F5F3] font-semibold">De:</span>{" "}
-                          {email.remitente}
-                        </p>
-                        <p>
-                          <span className="text-[#F2F5F3] font-semibold">Para:</span>{" "}
-                          {email.destinatario}
-                        </p>
-                        <p>
-                          <span className="text-[#F2F5F3] font-semibold">Fecha:</span>{" "}
-                          {email.fecha}
-                        </p>
-                        {email.tipoSeguimiento && (
-                          <p>
-                            <span className="text-[#F2F5F3] font-semibold">
-                              Tipo seguimiento:
-                            </span>{" "}
-                            {email.tipoSeguimiento}
-                          </p>
-                        )}
-                      </div>
-
-                      {contenidoHtml ? (
-                        <div className="rounded-lg bg-white overflow-hidden shadow-inner">
-                          <iframe
-                            sandbox="allow-popups allow-popups-to-escape-sandbox"
-                            title="Contenido del correo"
-                            srcDoc={normalizarHtml(
-                              reemplazarCidPorDataUrl(contenidoHtml, firmas),
-                            )}
-                            className="w-full"
-                            style={{
-                              border: 0,
-                              background: "#fff",
-                              height: "280px",
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <pre className="whitespace-pre-wrap font-sans text-xs text-gray-800 p-3.5 rounded-lg bg-white max-h-[280px] overflow-y-auto">
-                          {textoPlano}
-                        </pre>
-                      )}
-
-                      <div className="flex justify-end pt-1">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleResponder(email)}
-                          leftIcon={<Reply className="w-3.5 h-3.5" />}
-                        >
-                          Responder correo
-                        </Button>
-                      </div>
+                    <div className="p-4 pt-2 border-t border-white/[0.06] bg-[#0E1210]">
+                      <EmailViewer
+                        email={email}
+                        firmas={firmas}
+                        onComposeEmail={onComposeEmail}
+                        onClose={onClose}
+                        compact
+                      />
                     </div>
                   )}
                 </div>

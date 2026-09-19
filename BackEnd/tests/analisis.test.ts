@@ -105,6 +105,40 @@ describe('clasificarRespuesta', () => {
     ).toBe('otro');
   });
 
+  it('detecta y procesa actualizaciones de candidaturas de portales (NO las ignora)', () => {
+    expect(
+      clasificarRespuesta({
+        asunto: 'Tu candidatura ha sido vista',
+        remitente: 'candidaturas@computrabajo.com',
+        cuerpo: 'La empresa Globant ha visto tu CV para el puesto Backend Engineer.',
+      }),
+    ).toBe('novedad');
+
+    expect(
+      clasificarRespuesta({
+        asunto: 'La empresa ha revisado tu perfil',
+        remitente: 'notificaciones@bumeran.com.ar',
+        cuerpo: 'Tu candidatura continúa en el proceso de selección.',
+      }),
+    ).toBe('novedad');
+
+    expect(
+      clasificarRespuesta({
+        asunto: 'Has avanzado a la siguiente etapa',
+        remitente: 'jobs-noreply@linkedin.com',
+        cuerpo: 'Queremos coordinar una entrevista para avanzar en el proceso.',
+      }),
+    ).toBe('entrevista');
+
+    expect(
+      clasificarRespuesta({
+        asunto: 'Actualización del proceso',
+        remitente: 'notificaciones@infojobs.net',
+        cuerpo: 'Lamentablemente tu candidatura ha sido descartada por el empleador.',
+      }),
+    ).toBe('rechazo');
+  });
+
   it('la palabra descartada en "rechazar" no confunde a "entrevista"', () => {
     expect(
       clasificarRespuesta({
@@ -219,5 +253,36 @@ describe('matchearPostulacion', () => {
         emailsEnviados: [],
       }),
     ).toBeNull();
+  });
+
+  it('matchea por In-Reply-To o References con gmail_message_id enviado', () => {
+    const emailsEnviados = [
+      {
+        postulacion_id: 1,
+        destinatario: 'rrhh@globant.com',
+        gmail_message_id: 'msg_12345_abc',
+      },
+    ];
+    expect(
+      matchearPostulacion({
+        remitente: 'notificaciones@sistema.com',
+        asunto: 'Respuesta automática',
+        postulaciones,
+        emailsEnviados,
+        inReplyTo: '<msg_12345_abc>',
+      }),
+    ).toBe(1);
+  });
+
+  it('matchea por mención de empresa y puesto en el cuerpo aunque venga de un portal', () => {
+    expect(
+      matchearPostulacion({
+        remitente: 'candidaturas@computrabajo.com',
+        asunto: 'Novedades sobre tu postulación',
+        cuerpo: 'Hola! La empresa Globant ha visto tu CV para el puesto Backend Engineer.',
+        postulaciones,
+        emailsEnviados: [],
+      }),
+    ).toBe(1);
   });
 });

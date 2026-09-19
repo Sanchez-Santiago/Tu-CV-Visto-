@@ -7,6 +7,10 @@ import { PostulacionModel } from '../models/postulacion.model';
 import type { EmailRow, PostulacionRow } from '../types/models';
 import type { TipoSeguimiento } from '../types/common';
 import { AppError, NotFoundError } from '../utils/errors';
+import {
+  calcularHorasHabilesTranscurridas,
+  hanPasadoHorasHabiles,
+} from '../utils/horas-habiles';
 import { PlantillaService } from './plantilla.service';
 import { clasificarRespuesta } from './analisis.service';
 import { EmailService } from './email.service';
@@ -93,6 +97,36 @@ function esVencida(
   );
 }
 
+/**
+ * Regla de las 48 horas hábiles:
+ * Una postulación entra a la sección de Estrategia (renovación) cuando:
+ * 1. es_postulacion = true (activa, no cerrada)
+ * 2. respondio = 0 (no hay respuesta ni actualización relevante)
+ * 3. han transcurrido más de 48 horas hábiles desde el último contacto/envío
+ */
+function esVencidaParaRenovacion(
+  fila: {
+    ultimo_contacto: string | null;
+    proxima_contacto: string | null;
+    fecha_postulacion: string | null;
+    created_at: string;
+    empresa_cadencia_contacto: number | null;
+    respondio: number;
+  },
+  hoy: string,
+): boolean {
+  if (fila.respondio === 1) return false;
+
+  if (fila.proxima_contacto !== null) {
+    return fila.proxima_contacto <= hoy;
+  }
+
+  const baseFecha =
+    fila.ultimo_contacto ?? fila.fecha_postulacion ?? fila.created_at;
+
+  return hanPasadoHorasHabiles(baseFecha, 48);
+}
+
 function diasDesdeUltimoContacto(fila: {
   ultimo_contacto: string | null;
   fecha_postulacion: string | null;
@@ -177,7 +211,7 @@ export const EstrategiaService = {
 
     for (const fila of filas) {
       if (fila.respondio === 1) continue;
-      if (!esVencida(fila, hoy)) continue;
+      if (!esVencidaParaRenovacion(fila, hoy)) continue;
 
       const diasDesde = diasDesdeUltimoContacto(fila, hoy);
       const tipo = sugerirTipo(fila.cantidad_mails_enviados, diasDesde);
@@ -186,12 +220,17 @@ export const EstrategiaService = {
         PlantillaService.generar({ tipo, usuarioId, postulacionId: fila.id }),
       ]);
 
-      const cadencia =
-        fila.empresa_cadencia_contacto ?? env.CADENCIA_CONTACTO_DIAS;
+      const baseFecha =
+        fila.ultimo_contacto ?? fila.fecha_postulacion ?? fila.created_at;
+      const horasTranscurridas = calcularHorasHabilesTranscurridas(
+        baseFecha,
+        new Date(),
+      );
+      const horasRestantes = Math.max(0, 48 - horasTranscurridas);
       const diasParaProximo =
         fila.proxima_contacto !== null
           ? diasEntre(hoy, fila.proxima_contacto)
-          : cadencia - diasDesde;
+          : Math.ceil(horasRestantes / 24);
 
       candidatas.push({
         postulacion_id: fila.id,

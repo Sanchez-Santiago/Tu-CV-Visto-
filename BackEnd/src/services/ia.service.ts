@@ -1,28 +1,56 @@
 import { env } from '../config/env';
 import type { TipoRespuesta } from '../types/common';
 
-const MODELO = 'gemini-3.6-flash';
+const MODELO = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const URL_GEMINI = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
 const TIMEOUT_MS = 60_000;
-const RETRIES = 2;
-const ESPERAS_RETRY_MS = [2_000, 5_000];
+const RETRIES = 3;
+const ESPERAS_RETRY_MS = [2_000, 5_000, 10_000];
 
 export const TAMANIO_LOTE = 5;
-export const MAX_CONTENIDO_POR_EMAIL = 1500;
+export const MAX_CONTENIDO_POR_EMAIL = 2500;
 
 export interface EmailParaAnalisis {
   id: string;
   asunto: string | null;
   remitente: string;
   destinatario?: string;
+  cc?: string | null;
+  replyTo?: string | null;
+  fecha?: string | null;
+  messageId?: string | null;
+  inReplyTo?: string | null;
+  references?: string | null;
   es_enviado?: boolean;
   contenido: string;
+  cuerpoHtml?: string | null;
+  enlaces?: string[];
+  adjuntos?: string[];
 }
 
 export interface ClasificacionIA {
   tipo: TipoRespuesta;
   confianza: number;
   motivo: string;
+}
+
+export interface DeteccionPostulacionIA {
+  es_postulacion: boolean;
+  puesto: string | null;
+  empresa?: string | null;
+  confianza: number;
+  motivo: string;
+  es_alerta_empleo?: boolean;
+  es_actualizacion?: boolean;
+  estado_sugerido?: string | null;
+}
+
+export interface GeminiErrorDetalle {
+  status: number;
+  statusText: string;
+  body: string;
+  tipoError: 'RATE_LIMIT_429' | 'QUOTA_EXHAUSTED' | 'SERVER_ERROR' | 'CLIENT_ERROR' | 'NETWORK_ERROR' | 'TIMEOUT';
+  mensaje: string;
 }
 
 const TIPOS_VALIDOS: readonly TipoRespuesta[] = [
@@ -44,53 +72,141 @@ function esTipoValido(valor: unknown): valor is TipoRespuesta {
   );
 }
 
+// Concurrency gate: asegura que las llamadas a Gemini se ejecuten secuencialmente sin saturar la cuota
+let llamadaGeminiEnCurso: Promise<unknown> = Promise.resolve();
+
+async function ejecutarConConcurrenciaControlada<T>(
+  operacion: () => Promise<T>,
+): Promise<T> {
+  const anterior = llamadaGeminiEnCurso;
+  let resolverSiguiente: () => void = () => {};
+  llamadaGeminiEnCurso = new Promise<void>((r) => {
+    resolverSiguiente = r;
+  });
+
+  await anterior.catch(() => {});
+  try {
+    return await operacion();
+  } finally {
+    resolverSiguiente();
+  }
+}
+
 function construirBloque(email: EmailParaAnalisis, i: number): string {
   const direccion = email.es_enviado ? `→ ${email.destinatario ?? '?'}` : email.remitente;
   const direccionLabel = email.es_enviado ? 'Destinatario' : 'Remitente';
-  const enviadoLabel = email.es_enviado ? ' [ENVIADO POR EL CANDIDATO]' : '';
-  return `[${i}]${enviadoLabel}\nAsunto: ${email.asunto ?? '(sin asunto)'}\n${direccionLabel}: ${direccion}\nContenido:\n${email.contenido.slice(0, MAX_CONTENIDO_POR_EMAIL)}`;
+  const enviadoLabel = email.es_enviado ? ' [ENVIADO POR EL CANDIDATO]' : ' [RECIBIDO]';
+  const extraHeaders: string[] = [];
+  if (email.cc) extraHeaders.push(`Cc: ${email.cc}`);
+  if (email.replyTo) extraHeaders.push(`Reply-To: ${email.replyTo}`);
+  if (email.fecha) extraHeaders.push(`Fecha: ${email.fecha}`);
+  if (email.inReplyTo) extraHeaders.push(`In-Reply-To: ${email.inReplyTo}`);
+  if (email.enlaces && email.enlaces.length > 0) {
+    extraHeaders.push(`Enlaces: ${email.enlaces.slice(0, 5).join(', ')}`);
+  }
+  if (email.adjuntos && email.adjuntos.length > 0) {
+    extraHeaders.push(`Adjuntos: ${email.adjuntos.join(', ')}`);
+  }
+
+  const cabecerasExtra = extraHeaders.length > 0 ? `\n${extraHeaders.join('\n')}` : '';
+
+  return `[${i}]${enviadoLabel}\nAsunto: ${email.asunto ?? '(sin asunto)'}\n${direccionLabel}: ${direccion}${cabecerasExtra}\nContenido:\n${email.contenido.slice(0, MAX_CONTENIDO_POR_EMAIL)}`;
 }
 
 function construirPrompt(emails: EmailParaAnalisis[]): string {
   const bloques = emails.map(construirBloque).join('\n\n');
 
-  return `Clasificá cada correo relacionado a una búsqueda laboral del candidato.
+  return `Clasificá cada correo analizando el contexto completo (remitente, destinatario, asunto, fecha, enlaces, adjuntos y cuerpo).
 
-REGLAS IMPORTANTES:
-1. Si el correo está marcado como [ENVIADO POR EL CANDIDATO], clasificalo como "contacto" (es el candidato enviando, no una respuesta de empresa).
-2. Ignorá alertas automáticas de portales de empleo (Computrabajo, LinkedIn Job Alerts, Indeed, Bumeran, etc.) — clasificalas como "otro".
-3. Ignorá newsletters, promociones, facturas o mensajes sin relación con un proceso de selección específico — clasificalos como "otro".
+REGLAS DE CLASIFICACIÓN:
+1. Si el correo está marcado como [ENVIADO POR EL CANDIDATO], clasificalo como "contacto" si es comunicación general, o "otro" si es irrelevante.
+2. IMPORTANTÍSIMO SOBRE PORTALES DE EMPLEO (Computrabajo, LinkedIn, InfoJobs, Indeed, Bumeran, Glassdoor, etc.):
+   - Si es una ALERTA o boletín de nuevas ofertas ("Nuevas ofertas", "Empleos que podrían interesarte", "Trabajos para ti", etc.): clasificalo como "otro".
+   - Pero si es un CAMBIO DE ESTADO o NOVEDAD de una candidatura ("Tu candidatura ha sido vista", "La empresa ha revisado tu perfil", "Has avanzado a la siguiente etapa", "Candidatura en evaluación", "Candidatura descartada"):
+     * Si comunica entrevista o avance: "entrevista"
+     * Si comunica rechazo o descarte: "rechazo"
+     * Si comunica revisión de perfil o actualización: "novedad"
+3. Si la empresa invita a entrevista o llamada: "entrevista".
+4. Si la empresa ofrece el puesto o propuesta económica: "oferta".
+5. Si la empresa rechaza o descarta al candidato: "rechazo".
+6. Newsletters, publicidad, promociones, facturas o spam: "otro".
 
-Tipos posibles (elegí exactamente UNO por correo):
-- rechazo: la empresa comunica que no avanza con el candidato.
-- entrevista: la empresa invita a una entrevista o a continuar el proceso.
-- oferta: la empresa ofrece el puesto o propuesta laboral concreta.
-- novedad: actualización de estado sin decisión final clara.
-- contacto: el candidato escribe, o es un mensaje humano sin decisión de proceso.
-- otro: alerta de portal, newsletter, spam, o sin relación con una postulación.
+Tipos posibles:
+- rechazo
+- entrevista
+- oferta
+- novedad
+- contacto
+- otro
 
-Respondé SOLO JSON, un array de objetos, una entrada por correo:
-[{"index": 0, "tipo": "rechazo", "confianza": 0-100, "motivo": "breve"}]
+Respondé SOLO JSON estricto, un array de objetos:
+[{"index": 0, "tipo": "rechazo", "confianza": 95, "motivo": "Explicación breve"}]
 
 Correos:
 ${bloques}`;
 }
 
-async function llamarGemini(prompt: string): Promise<unknown> {
+function construirPromptPostulacion(emails: EmailParaAnalisis[]): string {
+  const bloques = emails.map(construirBloque).join('\n\n');
+
+  return `Analizá el contexto completo de cada correo para determinar si corresponde a una postulación laboral o proceso de selección.
+
+CRITERIOS IMPORTANTES:
+1. EMAILS ENVIADOS [ENVIADO POR EL CANDIDATO]:
+   - Analizá conjuntamente: destinatario (rrhh@, talent@, jobs@, recruiting@, etc.), asunto y cuerpo completo.
+   - Si el candidato envía su CV, consulta por vacante o se postula a una posición, ES UNA POSTULACIÓN (es_postulacion = true), aunque el asunto sea genérico (ej: "Consulta", "CV Juan", "Contacto"). Extraé la empresa destinataria y el puesto si se deducen del texto.
+   - Si el correo enviado no tiene relación laboral (ej: consulta administrativa, compras, personal), es_postulacion = false.
+
+2. EMAILS RECIBIDOS:
+   - ALERTA_EMPLEO: Correos automáticos de portales (Computrabajo, LinkedIn, Indeed, etc.) con listas de ofertas recomendadas -> NO es postulación (es_postulacion = false, es_alerta_empleo = true).
+   - ACTUALIZACION_POSTULACION: Notificaciones de que una empresa vio el CV, revisó el perfil, avanzó el proceso o rechazó la candidatura -> es_postulacion = true, es_actualizacion = true. Extraé empresa y puesto.
+   - Confirmación de aplicación de una empresa o recruiter directo -> es_postulacion = true.
+
+3. EXTRACCIÓN DE EMPRESA Y PUESTO:
+   - Si se detecta una postulación o actualización, extraé:
+     * puesto: Título del rol o posición (ej: "Backend Developer", "Desarrollador Node.js"). Si no se especifica, devolver null.
+     * empresa: Nombre de la empresa a la que se postula o que revisó la candidatura. Si no se puede deducir, devolver null.
+
+Respondé SOLO JSON estricto, un array de objetos:
+[
+  {
+    "index": 0,
+    "es_postulacion": true,
+    "puesto": "Backend Developer",
+    "empresa": "Empresa X",
+    "es_alerta_empleo": false,
+    "es_actualizacion": false,
+    "estado_sugerido": "pendiente",
+    "confianza": 95,
+    "motivo": "El candidato envía su CV postulándose a Backend Developer"
+  }
+]
+
+Correos:
+${bloques}`;
+}
+
+async function ejecutarFetchGemini(prompt: string): Promise<unknown> {
   if (!env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY no configurada');
   }
 
   let ultimoError: unknown;
+
   for (let intento = 0; intento <= RETRIES; intento += 1) {
     if (intento > 0) {
-      await new Promise((resolver) =>
-        setTimeout(resolver, ESPERAS_RETRY_MS[intento - 1] ?? 5_000),
+      const baseEspera = ESPERAS_RETRY_MS[intento - 1] ?? 10_000;
+      // Agregar jitter aleatorio de 200 a 1000ms
+      const espera = baseEspera + Math.floor(Math.random() * 800);
+      console.warn(
+        `[IA][Gemini] Reintento ${intento}/${RETRIES} tras espera de ${espera}ms...`,
       );
+      await new Promise((resolve) => setTimeout(resolve, espera));
     }
 
     const control = new AbortController();
     const temporizador = setTimeout(() => control.abort(), TIMEOUT_MS);
+
     try {
       const respuesta = await fetch(`${URL_GEMINI}?key=${env.GEMINI_API_KEY}`, {
         method: 'POST',
@@ -104,8 +220,24 @@ async function llamarGemini(prompt: string): Promise<unknown> {
         }),
         signal: control.signal,
       });
+
       if (!respuesta.ok) {
-        throw new Error(`Gemini respondió ${respuesta.status}`);
+        const bodyError = await respuesta.text().catch(() => '');
+        const es429 = respuesta.status === 429;
+        const tipo = es429 ? 'RATE_LIMIT_429' : 'SERVER_ERROR';
+
+        console.error(
+          `[IA][Gemini Error ${respuesta.status}] ${respuesta.statusText} (${tipo}):\n${bodyError}`,
+        );
+
+        const errorConDetalle = new Error(
+          `Gemini respondió ${respuesta.status} (${respuesta.statusText}): ${bodyError.slice(0, 300)}`,
+        );
+        (errorConDetalle as unknown as { status: number }).status = respuesta.status;
+        (errorConDetalle as unknown as { statusText: string }).statusText = respuesta.statusText;
+        (errorConDetalle as unknown as { body: string }).body = bodyError;
+
+        throw errorConDetalle;
       }
 
       const cuerpo = (await respuesta.json()) as {
@@ -134,6 +266,10 @@ async function llamarGemini(prompt: string): Promise<unknown> {
   throw ultimoError;
 }
 
+async function llamarGemini(prompt: string): Promise<unknown> {
+  return ejecutarConConcurrenciaControlada(() => ejecutarFetchGemini(prompt));
+}
+
 function esErrorTransitorio(error: unknown): boolean {
   if (error instanceof Error && error.name === 'AbortError') {
     return true;
@@ -141,8 +277,11 @@ function esErrorTransitorio(error: unknown): boolean {
   if (error instanceof TypeError) {
     return true;
   }
-  const mensaje =
-    error instanceof Error ? error.message : String(error);
+  const status = (error as unknown as { status?: number })?.status;
+  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+    return true;
+  }
+  const mensaje = error instanceof Error ? error.message : String(error);
   return /Gemini respondió (429|500|502|503|504)/.test(mensaje);
 }
 
@@ -185,40 +324,6 @@ export async function clasificarConIA(
   return resultados[0] ?? null;
 }
 
-export interface DeteccionPostulacionIA {
-  es_postulacion: boolean;
-  puesto: string | null;
-  confianza: number;
-  motivo: string;
-}
-
-function construirPromptPostulacion(emails: EmailParaAnalisis[]): string {
-  const bloques = emails.map(construirBloque).join('\n\n');
-
-  return `Determiná si cada correo corresponde a una postulación laboral (el candidato aplicó o está en un proceso de selección para un puesto concreto).
-
-PISTAS DE DIRECCIÓN:
-- Los correos marcados [ENVIADO POR EL CANDIDATO] son enviados por el propio candidato: en la enorme mayoría de los casos SON postulaciones (se postuló a una vacante o escribió al reclutador). Tratalos como postulación salvo que sea claramente un mensaje interno, una respuesta trivial o un tema sin relación laboral.
-- Los correos recibidos (sin esa marca) son postulaciones solo si una empresa o un reclutador confirma o avanza el proceso de una candidatura del candidato.
-
-Es una postulación si el correo:
-- es el propio candidato postulándose o enviando su CV a una vacante,
-- confirma o responde una candidatura/aplicación enviada,
-- invita a una entrevista, hace una oferta o comunica una decisión (avance/rechazo) de un proceso de selección.
-
-NO es una postulación (es_postulacion = false) si es:
-- alertas automáticas de portales de empleo (por ejemplo "Trabajo Copado" de Computrabajo, "Nuevas ofertas que te pueden interesar", LinkedIn Job Alerts, Indeed, Bumeran, ZonaJobs, Glassdoor, etc.), aunque mencionen muchos puestos;
-- newsletters, promociones, facturas, notificaciones de sistemas, mensajes personales o laborales genéricos sin un puesto concreto, correos vacíos.
-
-Si es una postulación, extraé el PUESTO (título del puesto al que refiere, tomado del asunto o del contenido). Si no se menciona ningún puesto concreto, devolvé null.
-
-Respondé SOLO JSON, un array de objetos, una entrada por correo:
-[{"index": 0, "es_postulacion": true, "puesto": "Desarrollador Backend", "confianza": 0-100, "motivo": "breve"}]
-
-Correos:
-${bloques}`;
-}
-
 export async function detectarPostulacionesLote(
   emails: EmailParaAnalisis[],
 ): Promise<(DeteccionPostulacionIA | null)[]> {
@@ -240,6 +345,16 @@ export async function detectarPostulacionesLote(
         puesto:
           typeof entrada?.puesto === 'string' && entrada.puesto.trim() !== ''
             ? entrada.puesto.trim()
+            : null,
+        empresa:
+          typeof entrada?.empresa === 'string' && entrada.empresa.trim() !== ''
+            ? entrada.empresa.trim()
+            : null,
+        es_alerta_empleo: Boolean(entrada?.es_alerta_empleo),
+        es_actualizacion: Boolean(entrada?.es_actualizacion),
+        estado_sugerido:
+          typeof entrada?.estado_sugerido === 'string'
+            ? entrada.estado_sugerido
             : null,
         confianza:
           typeof entrada?.confianza === 'number' ? entrada.confianza : 0,

@@ -1,98 +1,148 @@
-# CVisto
+<p align="center">
+  <img src="docs/banner.jpg" alt="CVisto — Tu búsqueda laboral, organizada" width="100%"/>
+</p>
 
-**Seguimiento integral de búsquedas laborales** — un espacio de trabajo digital para organizar tus postulaciones, empresas, contactos de RR. HH. y comunicaciones en un solo lugar.
-
-> JobTrack / CVisto: *Personal Job Application & Follow-up Manager*
+<p align="center">
+  <a href="#-funcionalidades"><img src="https://img.shields.io/badge/Funcionalidades-ver-22C55E?style=flat-square&labelColor=0D1210" alt="Funcionalidades"/></a>
+  <a href="#-tecnologías"><img src="https://img.shields.io/badge/Stack-Bun%20%7C%20React%2019%20%7C%20Gemini%20AI-22C55E?style=flat-square&labelColor=0D1210" alt="Stack"/></a>
+  <a href="#-puesta-en-marcha-local"><img src="https://img.shields.io/badge/Setup-local-22C55E?style=flat-square&labelColor=0D1210" alt="Setup"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-GPL--3.0-22C55E?style=flat-square&labelColor=0D1210" alt="Licencia"/></a>
+  <img src="https://img.shields.io/badge/Tests-192%20pasados-22C55E?style=flat-square&labelColor=0D1210" alt="Tests"/>
+</p>
 
 ---
 
-## Objetivo del proyecto
+## ¿Qué es CVisto?
 
-Buscar trabajo implica postularse a varias empresas al mismo tiempo, y es fácil perder el control de:
+**CVisto** es un espacio de trabajo personal para organizar búsquedas laborales. Centraliza postulaciones, empresas, contactos de RR. HH. y correos en un solo lugar — con sincronización de Gmail, clasificación inteligente por IA y recordatorios automáticos de seguimiento.
 
-- dónde te postulaste y a qué puesto;
-- cuándo se envió cada postulación;
-- qué persona de RR. HH. fue contactada;
-- qué correos enviaste y si te respondieron;
-- si el proceso continúa o fue rechazado;
-- cuándo corresponde hacer un seguimiento;
-- cuáles oportunidades son las más interesantes.
+> El sistema **no reemplaza tus decisiones**: actúa como un asistente de gestión que organiza la información y automatiza tareas previamente autorizadas (como detectar respuestas, preparar seguimientos o sincronizar tu Gmail).
 
-**CVisto centraliza toda esa información** con un seguimiento ordenado y estadísticas, ayudando a las personas que buscan trabajo a no perder oportunidades por falta de organización. El sistema **no reemplaza tus decisiones**: actúa como un asistente de gestión que organiza la información y automatiza tareas previamente autorizadas (como preparar seguimientos o sincronizar tu Gmail).
+---
+
+## ✨ Funcionalidades
+
+<table>
+<tr>
+<td width="50%">
+
+### 📬 Emails & Gmail
+- **Sincronización automática** con Gmail (últimos 60 días, enviados y recibidos)
+- **Lector de correos moderno** — HTML renderizado con padding interno, sin que el contenido toque los bordes
+- Detección segura de imágenes (firmas, logos, embebidas, remotas) con toggle de visibilidad y lightbox
+- Sanitización anti-XSS estricta en todos los correos renderizados
+- **Responder / Reenviar** con asunto y cuerpo precargados
+- Redacción con CC, adjuntos (hasta 18 MB) y autocompletado de contactos
+- Filtros: texto libre, Todos / Recibidos / Enviados, rango de fechas, paginación (50/página)
+
+</td>
+<td width="50%">
+
+### 🏢 Postulaciones & Empresas
+- Alta, edición y borrado de postulaciones
+- Estados: `pendiente`, `en_proceso`, `entrevista`, `oferta`, `aceptado`, `rechazado`, `cancelado`
+- Vinculación automática de correos a postulaciones por empresa y contacto
+- Clasificación de respuestas: **rechazo / entrevista / novedad / contacto**
+- Distinción inteligente entre **alertas masivas de portales** (ignoradas) y **actualizaciones de tu candidatura** (procesadas)
+- Empresas y **contactos de RR. HH.** con botón de email directo
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🧠 Inteligencia Artificial (Gemini)
+- Análisis de correos con **Gemini 2.5 Flash** — remitente, dominio, asunto, cuerpo, enlaces y adjuntos
+- Control de concurrencia y **backoff exponencial con jitter** para manejar límites de cuota (429)
+- Diagnóstico detallado de errores de API
+
+</td>
+<td width="50%">
+
+### ⏱️ Estrategia de Contacto
+- Lista de oportunidades que conviene contactar **ahora**
+- Regla de **48 horas hábiles** (excluyendo fines de semana) para mover postulaciones sin respuesta a seguimiento urgente
+- Renovaciones sugeridas con plantillas personalizables
+- Si llega una respuesta, el estado se actualiza y la postulación sale de la cola automáticamente
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 📊 Dashboard & Analítica
+- Estadísticas de actividad mensual
+- Gráfico de emails enviados/recibidos y postulaciones activas
+- Tasas de respuesta y estado general de la búsqueda
+
+</td>
+<td width="50%">
+
+### 🔐 Autenticación & Configuración
+- **Login con Google OAuth 2.0** — sin contraseñas guardadas
+- Exportación de backup completo en JSON
+- Firma digital (imagen base64 embebida en emails) con resolución automática de `cid:`
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🔄 Flujo de trabajo
 
 ```
 Encontrar oportunidad
         ↓
-Registrar empresa y contacto RRHH
+Registrar empresa y contacto RR. HH.
         ↓
 Registrar postulación
         ↓
-Enviar postulación  (desde Gmail o registrando el email)
+Enviar postulación  ─────────────── Gmail API (o registro manual)
         ↓
-Esperar respuesta  ← la sincronización detecta respuestas automáticamente
+Esperar respuesta   ←─ sincronización detecta respuestas automáticamente
         ↓
-¿Respondieron?
-   ┌────┴────┐
-   │         │
-  NO        SÍ
-   │         │
-  Preparar    Actualizar estado
-  seguimiento│
+    ¿Respondieron?
+   ┌──────┴──────┐
+   │              │
+  NO              SÍ
+   │              │
+  +48 hs hábiles  Actualizar estado → entrevista / rechazo / novedad
    ↓
-  Enviar seguimiento
+  → Estrategia: lista de seguimiento urgente
+   ↓
+  Enviar seguimiento (con plantilla)
 ```
 
 ### Estados de postulación
 
-Cada postulación puede pasar por: `pendiente`, `en_proceso`, `entrevista`, `oferta`, `aceptado`, `rechazado`, `cancelado`. Cada correo vinculado, cada contacto y cada seguimiento quedan registrados y ligados a esa postulación.
+| Estado | Descripción |
+|---|---|
+| `pendiente` | Registrada, aún no enviada |
+| `en_proceso` | En evaluación por la empresa |
+| `entrevista` | Convocado a entrevista |
+| `oferta` | Oferta recibida |
+| `aceptado` | Oferta aceptada |
+| `rechazado` | Proceso cerrado negativamente |
+| `cancelado` | Descartada manualmente |
 
 ---
 
-## IA (roadmap — no implementada)
-
-Se planea incorporar asistencia con **inteligencia artificial** en el futuro, por ejemplo:
-
-- analizar automáticamente las respuestas recibidas y sugerir próximos pasos;
-- redactar borradores de seguimiento personalizados por postulación;
-- detectar oportunidades de mejora en el CV o en el tono de las comunicaciones.
-
-> ⚠️ **Aún no está implementado.** En el repo quedaron dependencias base de `@google/genai` en el frontend, pero la IA no está en uso en ninguna funcionalidad actual.
-
----
-
-## Funcionalidades actuales
-
-- **Dashboard** con estadísticas y gráfico de actividad mensual (emails enviados/recibidos, postulaciones activas, tasas de respuesta).
-- **Postulaciones**: alta/edición/borrado, estados, nivel de interés, fuente, modalidad, contador de emails enviados y próximos contactos.
-- **Empresas** y **contactos de RR. HH.**, con botón para escribirles un email directo.
-- **Emails**:
-  - historial vinculado a postulaciones con registro manual;
-  - **lector de correos** con vista HTML completa;
-  - **Responder / Reenviar** con el asunto y el mensaje original precargados;
-  - redacción con **CC**, **adjuntos** (fotos, videos, PDF, Word, zip… hasta 18 MB) y **autocompletar destinatario** desde tus contactos;
-  - filtros: búsqueda, Todos/Recibidos/Enviados, **rango de fechas** y **paginación** (50 por página).
-- **Sincronización con Gmail**: importa correos de los últimos 60 días (recibidos **y enviados**, con paginación), vincula mails enviados a postulaciones por empresa/contacto y **clasifica automáticamente las respuestas** (rechazo, entrevista, novedad, contacto) detectando palabras clave.
-- **Estrategia de contacto**: lista quién conviene contactar ahora (cadencia vencida), renovaciones sugeridas con plantillas, revisiones de rechazos y cálculos de próximos contactos.
-- **Seguimientos** con fecha programada, tipo y aprobación antes del envío.
-- **Exportación de backup** en JSON y configuración de perfil.
-- **Login con Google OAuth 2.0**.
-
----
-
-## Tecnologías
+## 🛠 Tecnologías
 
 ### Backend (`BackEnd/`)
 
 | Herramienta | Uso |
 |---|---|
-| **Bun** | Runtime y gestor de paquetes |
-| **TypeScript** | Lenguaje (modo estricto) |
+| **Bun** ≥ 1.3 | Runtime y gestor de paquetes |
+| **TypeScript** (modo estricto) | Lenguaje |
 | **Express** | Framework HTTP |
 | **Zod** | Validación de entrada y tipos |
-| **Turso / SQLite** | Base de datos (`@libsql/client`) |
-| **google-auth-library** | OAuth 2.0 / Google |
+| **Turso / SQLite** (`@libsql/client`) | Base de datos |
+| **Google Auth Library** | OAuth 2.0 / Google |
 | **jose** | Firmado y verificación de JWT |
-| **Vitest + Supertest** | Tests (168 tests) |
+| **Google Generative AI** | Clasificación de correos con Gemini 2.5 Flash |
+| **Vitest + Supertest** | 192 tests unitarios e integración |
 | **ESLint / Prettier** | Lint y formato |
 
 ### Frontend (`FrontEnd/cvisto/`)
@@ -104,44 +154,47 @@ Se planea incorporar asistencia con **inteligencia artificial** en el futuro, po
 | **Tailwind CSS 4** | Estilos (tema dark, skeuomorfismo moderno) |
 | **lucide-react** | Iconos |
 | **motion** | Animaciones |
-| **Zod** | Schemas compartidos del frontend |
+| **Zod** | Schemas compartidos |
 
 ### Integraciones
 
-- **Google OAuth 2.0**: inicio de sesión sin guardar contraseñas.
-- **Gmail API**: sincronización de inbox, lectura de mensajes, clasificación de respuestas y envío de correos reales (con CC y adjuntos multipart).
+- **Google OAuth 2.0**: autenticación sin contraseñas.
+- **Gmail API**: sincronización bidireccional, envío real (CC + adjuntos multipart), resolución de imágenes `cid:` embebidas.
+- **Gemini AI**: análisis y clasificación de correos con control de concurrencia y resiliencia a errores de cuota.
 
 ---
 
-## Estructura del proyecto
+## 📁 Estructura del proyecto
 
 ```
 .
+├── docs/                     → imágenes y recursos del README
 ├── BackEnd/
 │   ├── src/
-│   │   ├── config/       → env (Zod), cliente de Turso, credenciales de Google
-│   │   ├── controllers/  → entrada y salida HTTP
-│   │   ├── services/     → lógica de negocio (Gmail, sincronización, estrategia…)
-│   │   ├── models/       → acceso a datos (queries parametrizadas)
-│   │   ├── routes/       → definición de rutas Express
-│   │   ├── schemas/      → validación Zod por entidad
-│   │   ├── middlewares/  → autenticación, errores, logger, validación
-│   │   ├── types/        → tipos compartidos, enums y filas de tablas
-│   │   └── utils/        → errores, JWT, migraciones, documentación
-│   ├── database/         → schema.sql (DDL) y seeds.sql (datos base)
-│   ├── scripts/          → migrate.ts
-│   └── tests/            → suites Vitest (SQLite local)
+│   │   ├── config/           → env (Zod), cliente Turso, credenciales Google
+│   │   ├── controllers/      → entrada y salida HTTP
+│   │   ├── services/         → lógica de negocio (Gmail, IA, sincronización, estrategia…)
+│   │   ├── models/           → acceso a datos (queries parametrizadas)
+│   │   ├── routes/           → rutas Express
+│   │   ├── schemas/          → validación Zod por entidad
+│   │   ├── middlewares/      → autenticación, errores, logger, validación
+│   │   ├── types/            → tipos compartidos, enums y filas de tablas
+│   │   └── utils/            → horas hábiles, JWT, migraciones, docs
+│   ├── database/             → schema.sql (DDL) y seeds.sql
+│   ├── scripts/              → migrate.ts
+│   └── tests/                → suites Vitest (SQLite local, 192 tests)
 │
 └── FrontEnd/
     └── cvisto/
         ├── src/
-        │   ├── components/  → vistas, modales y librería UI
-        │   ├── hooks/       → useAuth, usePostulaciones, useEmails…
-        │   ├── lib/         → cliente de API y helpers de texto
-        │   ├── schemas/     → schemas Zod del frontend
-        │   └── types/       → tipos de la aplicación
-        ├── index.html
-        └── vite.config.ts
+        │   ├── components/   → vistas, modales, EmailViewer y librería UI
+        │   ├── hooks/        → useAuth, usePostulaciones, useEmails…
+        │   ├── lib/          → cliente API, html.ts (sanitización), helpers
+        │   ├── schemas/      → schemas Zod del frontend
+        │   └── types/        → tipos de la aplicación
+        └── public/
+            ├── logo.svg      → logo con checkmark
+            └── favicon.svg
 ```
 
 ### Arquitectura del backend
@@ -149,78 +202,96 @@ Se planea incorporar asistencia con **inteligencia artificial** en el futuro, po
 ```
 HTTP Request
      ↓
-Controller  → validación y HTTP (Zod en los middlewares)
+Middleware  → autenticación JWT, validación Zod, logger
      ↓
-Service     → lógica de negocio y reglas
+Controller  → parsing y respuesta HTTP
      ↓
-Model       → acceso a datos (queries parametrizadas)
+Service     → lógica de negocio y reglas de dominio
+     ↓
+Model       → queries parametrizadas a SQLite
      ↓
 Turso / SQLite
 ```
 
 ---
 
-## Puesta en marcha local
+## 🚀 Puesta en marcha local
 
 ### Requisitos
 
 - **Bun** ≥ 1.3
-- **Node.js** (para el frontend)
+- **Node.js** ≥ 18 (para el frontend con Vite)
+- Credenciales de Google Cloud (OAuth 2.0 + Gmail API habilitado)
+- Base de datos Turso (o SQLite local con `file:./db.sqlite`)
 
-### Backend (`BackEnd/`)
+### 1. Backend (`BackEnd/`)
 
-1. Copiar `.env.example` a `.env` y completar las variables:
-   - `URL_TURSO` y `TOKEN_TURSO`: base remota de Turso (o `file:./db.sqlite` para local).
-   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y el redirect URI (`GOOGLE_CALLBACK_URL`).
-   - `JWT_SECRET`: una clave larga y aleatoria.
-2. Instalar dependencias y preparar la base:
+```bash
+# 1. Copiar y completar las variables de entorno
+cp .env.example .env
+# Variables requeridas:
+#   URL_TURSO, TOKEN_TURSO  → base de datos Turso
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL
+#   JWT_SECRET              → clave larga y aleatoria
+#   GEMINI_API_KEY          → Google AI Studio
+#   GEMINI_MODEL            → (opcional) default: gemini-2.5-flash
 
-   ```bash
-   bun install
-   bun run migrate
-   ```
+# 2. Instalar dependencias y aplicar migraciones
+bun install
+bun run migrate
 
-3. Levantar el servidor (por defecto en `http://localhost:3000`):
+# 3. Levantar el servidor (http://localhost:3000)
+bun run dev
+```
 
-   ```bash
-   bun run dev
-   ```
+### 2. Frontend (`FrontEnd/cvisto/`)
 
-### Frontend (`FrontEnd/cvisto/`)
+```bash
+# 1. Instalar dependencias
+bun install   # o: npm install
 
-1. Instalar dependencias:
+# 2. Configurar API URL en .env
+echo "VITE_API_URL=http://localhost:3000" > .env
 
-   ```bash
-   npm install
-   ```
-
-2. Configurar `VITE_API_URL` en `.env` apuntando al backend (por defecto `http://localhost:3000`).
-3. Levantar la app (por defecto en `http://localhost:5173`):
-
-   ```bash
-   npm run dev
-   ```
+# 3. Levantar la app (http://localhost:5173)
+bun run dev   # o: npm run dev
+```
 
 ### Scripts útiles
 
-| Comando | Descripción |
-|---|---|
-| `bun run migrate` | Aplica schema y seeds a la base |
-| `bun test` | Corre las 168 pruebas del backend (Vitest) |
-| `bun run typecheck` | Chequeo de tipos del backend |
-| `bun run lint` | ESLint del backend |
-| `npm run dev` | Dev server del frontend (Vite) |
-| `npm run build` | Build de producción del frontend |
-| `npm run lint` | Chequeo de tipos del frontend (`tsc --noEmit`) |
+| Comando | Directorio | Descripción |
+|---|---|---|
+| `bun run migrate` | `BackEnd/` | Aplica schema y seeds |
+| `bun run test` | `BackEnd/` | 192 pruebas (Vitest) |
+| `bun run typecheck` | `BackEnd/` | Chequeo de tipos |
+| `bun run lint` | `BackEnd/` | ESLint |
+| `bun run dev` | `FrontEnd/cvisto/` | Dev server (Vite) |
+| `bun run build` | `FrontEnd/cvisto/` | Build de producción |
 
 ---
 
-## Tests
+## 🧪 Tests
 
-El backend cuenta con **168 tests** cubriendo autenticación, empresas, contactos, postulaciones, emails, seguimientos, estrategia, sincronización de Gmail, envío de correos (incluidos CC y adjuntos multipart), renovaciones por plantilla y más. Los tests corren contra una base SQLite local para no tocar la base remota.
+El backend cuenta con **192 tests** cubriendo:
+
+- Autenticación (OAuth, JWT)
+- CRUD de empresas, contactos, postulaciones, emails, seguimientos
+- Estrategia de contacto y regla de 48 horas hábiles
+- Sincronización de Gmail y clasificación de respuestas por IA
+- Envío de correos reales (CC, adjuntos multipart)
+- Renovaciones por plantilla y análisis determinístico de portales
+
+Los tests corren contra una base **SQLite local** para no afectar la base remota.
+
+```bash
+# En BackEnd/
+bun run test
+# → Test Files  21 passed (21)
+# →      Tests  192 passed (192)
+```
 
 ---
 
-## Licencia
+## 📄 Licencia
 
 Licenciado bajo la **GNU General Public License v3.0**. Ver [`LICENSE`](LICENSE).

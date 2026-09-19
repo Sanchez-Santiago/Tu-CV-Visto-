@@ -6,6 +6,7 @@ import type { Empresa } from "@/src/schemas/empresa";
 import type { TipoEmail } from "@/src/schemas/common";
 import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
+import { EmailViewer } from "./EmailViewer";
 import { Input } from "@/src/components/ui/Input";
 import { Select } from "@/src/components/ui/Select";
 import { SectionHeader } from "@/src/components/ui/SectionHeader";
@@ -527,118 +528,14 @@ export const EmailsView: React.FC<EmailsViewProps> = ({
         description={selectedEmail ? `Email ${selectedEmail.enviado === 1 ? "enviado" : "recibido"}` : undefined}
         maxWidth="4xl"
       >
-        {selectedEmail && (() => {
-          const contenidoHtml = esHtml(selectedEmail.cuerpoHtml)
-            ? (selectedEmail.cuerpoHtml ?? "")
-            : esHtml(selectedEmail.contenidoResumen)
-              ? (selectedEmail.contenidoResumen ?? "")
-              : "";
-          const textoPlano = !contenidoHtml
-            ? (selectedEmail.cuerpoHtml ||
-              (selectedEmail.contenidoResumen &&
-                !esHtml(selectedEmail.contenidoResumen)
-                ? selectedEmail.contenidoResumen
-                : "") ||
-              "(Sin contenido)")
-            : "";
-          const escribir = (modo: "responder" | "reenviar") => {
-            if (!selectedEmail || !onComposeEmail) return;
-            const prefill = {
-              destinatario:
-                modo === "reenviar"
-                  ? ""
-                  : selectedEmail.enviado === 1
-                    ? (selectedEmail.destinatario ?? "")
-                    : (selectedEmail.remitente ?? ""),
-              asunto: armarPrefijoAsunto(selectedEmail.asunto, modo),
-              cuerpo: citarMensaje(selectedEmail),
-            };
-            setSelectedEmail(null);
-            onComposeEmail(prefill);
-          };
-
-          return (
-            <div className="space-y-4">
-              <div className="space-y-1 text-xs text-[#A7B0AA]">
-                <p>
-                  <span className="text-[#F2F5F3] font-semibold">De:</span>{" "}
-                  {selectedEmail.remitente}
-                </p>
-                <p>
-                  <span className="text-[#F2F5F3] font-semibold">Para:</span>{" "}
-                  {selectedEmail.destinatario}
-                </p>
-                <p>
-                  <span className="text-[#F2F5F3] font-semibold">Fecha:</span>{" "}
-                  {selectedEmail.fecha}
-                </p>
-              </div>
-
-              {contenidoHtml ? (
-                <div className="rounded-[12px] bg-white overflow-hidden shadow-[inset_0_2px_8px_rgba(0,0,0,0.08)]">
-                  <iframe
-                    sandbox=""
-                    title="Contenido del email"
-                    srcDoc={normalizarHtml(contenidoHtml)}
-                    className="w-full"
-                    style={{
-                      border: 0,
-                      background: "#fff",
-                      height: "min(65vh, 720px)",
-                      minHeight: 420,
-                    }}
-                  />
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 p-4 rounded-[12px] bg-white max-h-[65vh] min-h-[280px] overflow-y-auto">
-                  {textoPlano}
-                </pre>
-              )}
-
-              <div className="pt-3 border-t border-white/[0.06] flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2">
-                  {onComposeEmail && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Reply className="w-4 h-4" />}
-                        onClick={() => escribir("responder")}
-                      >
-                        Responder
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Forward className="w-4 h-4" />}
-                        onClick={() => escribir("reenviar")}
-                      >
-                        Reenviar
-                      </Button>
-                    </>
-                  )}
-                </div>
-
-                {selectedEmail.postulacionId === null && (
-                  <div className="ml-auto">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={<Briefcase className="w-4 h-4 text-black" />}
-                      onClick={() => {
-                        const email = selectedEmail;
-                        setSelectedEmail(null);
-                        onCrearPostulacionDesdeEmail(email);
-                      }}
-                    >
-                      Agregar como postulación
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {selectedEmail && (
+          <EmailViewer
+            email={selectedEmail}
+            onComposeEmail={onComposeEmail}
+            onCrearPostulacion={onCrearPostulacionDesdeEmail}
+            onClose={() => setSelectedEmail(null)}
+          />
+        )}
       </Modal>
     </div>
   );

@@ -17,14 +17,37 @@ export interface GmailMensajeResumen {
   snippet: string;
 }
 
+export interface GmailAdjuntoInfo {
+  nombre: string;
+  mimeType: string;
+  tamano?: number;
+  contentId?: string;
+}
+
+export interface GmailImagenInfo {
+  contentId?: string;
+  mimeType: string;
+  nombre?: string;
+  dataUrl?: string;
+}
+
 export interface GmailMensajeDetalle extends GmailMensajeResumen {
   fecha: string | null;
   cabeceras: {
     de: string | null;
     para: string | null;
+    cc: string | null;
+    bcc: string | null;
+    replyTo: string | null;
     asunto: string | null;
     fecha: string | null;
+    messageId: string | null;
+    inReplyTo: string | null;
+    references: string | null;
   };
+  adjuntos: GmailAdjuntoInfo[];
+  imagenes: GmailImagenInfo[];
+  enlaces: string[];
   cuerpo: string;
   cuerpoHtml: string;
 }
@@ -353,22 +376,42 @@ function cabecerasDeInteres(
   return {
     de: obtener('From'),
     para: obtener('To'),
+    cc: obtener('Cc'),
+    bcc: obtener('Bcc'),
+    replyTo: obtener('Reply-To'),
     asunto: obtener('Subject'),
     fecha: obtener('Date'),
+    messageId: obtener('Message-ID'),
+    inReplyTo: obtener('In-Reply-To'),
+    references: obtener('References'),
   };
+}
+
+function decodificarBase64Url(data: string): string {
+  return Buffer.from(
+    data.replace(/-/g, '+').replace(/_/g, '/'),
+    'base64',
+  ).toString('utf8');
 }
 
 function extraerCuerpo(payload?: RespuestaGmail['payload']): string | null {
   if (!payload) return null;
-  if (payload.body?.data) {
-    return Buffer.from(
-      payload.body.data.replace(/-/g, '+').replace(/_/g, '/'),
-      'base64',
-    ).toString('utf8');
+  // Priorizar texto plano directo si existe
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return decodificarBase64Url(payload.body.data);
   }
+  for (const parte of payload.parts ?? []) {
+    if (parte?.mimeType === 'text/plain' && parte.body?.data) {
+      return decodificarBase64Url(parte.body.data);
+    }
+  }
+  // Búsqueda recursiva
   for (const parte of payload.parts ?? []) {
     const cuerpo = extraerCuerpo(parte);
     if (cuerpo) return cuerpo;
+  }
+  if (payload.body?.data) {
+    return decodificarBase64Url(payload.body.data);
   }
   return null;
 }
@@ -376,16 +419,111 @@ function extraerCuerpo(payload?: RespuestaGmail['payload']): string | null {
 function extraerParteHtml(payload?: RespuestaGmail['payload']): string | null {
   if (!payload) return null;
   if (payload.mimeType === 'text/html' && payload.body?.data) {
-    return Buffer.from(
-      payload.body.data.replace(/-/g, '+').replace(/_/g, '/'),
-      'base64',
-    ).toString('utf8');
+    return decodificarBase64Url(payload.body.data);
+  }
+  for (const parte of payload.parts ?? []) {
+    if (parte?.mimeType === 'text/html' && parte.body?.data) {
+      return decodificarBase64Url(parte.body.data);
+    }
   }
   for (const parte of payload.parts ?? []) {
     const cuerpo = extraerParteHtml(parte);
     if (cuerpo) return cuerpo;
   }
   return null;
+}
+
+function extraerAdjuntosEImagenes(payload?: RespuestaGmail['payload']): {
+  adjuntos: GmailAdjuntoInfo[];
+  imagenes: GmailImagenInfo[];
+} {
+  const adjuntos: GmailAdjuntoInfo[] = [];
+  const imagenes: GmailImagenInfo[] = [];
+
+  const recorrer = (parte?: RespuestaGmail['payload']) => {
+    if (!parte) return;
+
+    const mime = (parte.mimeType ?? '').toLowerCase();
+    const headers = parte.headers ?? [];
+    const contentIdRaw = headers.find(
+      (h) => h.name?.toLowerCase() === 'content-id',
+    )?.value;
+    const contentId = contentIdRaw
+      ? contentIdRaw.replace(/^<|>$/g, '').trim()
+      : undefined;
+
+    const filename = headers.find(
+      (h) =>
+        h.name?.toLowerCase() === 'content-disposition' ||
+        h.name?.toLowerCase() === 'content-type',
+    )?.value;
+
+    const nombre =
+      (parte as { filename?: string }).filename ||
+      contentId ||
+      `archivo_${adjuntos.length + 1}`;
+
+    const tieneDatos = Boolean(parte.body?.data);
+    const esImagen = mime.startsWith('image/');
+
+    if (esImagen) {
+      const dataUrl = tieneDatos
+        ? `data:${mime};base64,${parte.body!.data!.replace(/-/g, '+').replace(/_/g, '/')}`
+        : undefined;
+
+      imagenes.push({
+        contentId,
+        mimeType: mime,
+        nombre,
+        dataUrl,
+      });
+    }
+
+    if ((parte as { filename?: string }).filename || (!esImagen && parte.body?.data)) {
+      adjuntos.push({
+        nombre: (parte as { filename?: string }).filename || nombre,
+        mimeType: mime || 'application/octet-stream',
+        tamano: parte.body?.data?.length,
+        contentId,
+      });
+    }
+
+    for (const subparte of parte.parts ?? []) {
+      recorrer(subparte);
+    }
+  };
+
+  recorrer(payload);
+  return { adjuntos, imagenes };
+}
+
+function extraerEnlaces(cuerpo: string, html: string): string[] {
+  const textoCombinado = `${cuerpo} ${html}`;
+  const enlacesEncontrados = new Set<string>();
+  const regex = /https?:\/\/[^\s"'<>]+/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(textoCombinado)) !== null) {
+    const urlLimpia = match[0].replace(/[.,;:)]+$/, '');
+    if (urlLimpia.length > 8 && urlLimpia.length < 500) {
+      enlacesEncontrados.add(urlLimpia);
+    }
+  }
+  return Array.from(enlacesEncontrados).slice(0, 30);
+}
+
+function incrustarImagenesEnHtml(
+  html: string,
+  imagenes: GmailImagenInfo[],
+): string {
+  if (!html || imagenes.length === 0) return html;
+  let htmlModificado = html;
+  for (const img of imagenes) {
+    if (img.contentId && img.dataUrl) {
+      const regex = new RegExp(`cid:${img.contentId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+      htmlModificado = htmlModificado.replace(regex, img.dataUrl);
+    }
+  }
+  return htmlModificado;
 }
 
 export const GmailService = {
@@ -482,6 +620,13 @@ export const GmailService = {
     messageId: string,
   ): Promise<GmailMensajeDetalle> {
     const data = await requestGmail(usuarioId, `/messages/${messageId}`);
+    const cabeceras = cabecerasDeInteres(data.payload?.headers ?? []);
+    const { adjuntos, imagenes } = extraerAdjuntosEImagenes(data.payload);
+    const cuerpo = extraerCuerpo(data.payload) ?? '';
+    const rawHtml = extraerParteHtml(data.payload) ?? '';
+    const cuerpoHtml = incrustarImagenesEnHtml(rawHtml, imagenes);
+    const enlaces = extraerEnlaces(cuerpo, cuerpoHtml);
+
     return {
       id: data.id ?? '',
       threadId: data.threadId ?? null,
@@ -489,9 +634,12 @@ export const GmailService = {
       fecha: data.internalDate
         ? new Date(Number(data.internalDate)).toISOString()
         : null,
-      cabeceras: cabecerasDeInteres(data.payload?.headers ?? []),
-      cuerpo: extraerCuerpo(data.payload) ?? '',
-      cuerpoHtml: extraerParteHtml(data.payload) ?? '',
+      cabeceras,
+      adjuntos,
+      imagenes,
+      enlaces,
+      cuerpo,
+      cuerpoHtml,
     };
   },
 };

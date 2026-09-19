@@ -107,6 +107,7 @@ export const SincronizacionService = {
       .map((email) => ({
         postulacion_id: email.postulacion_id,
         destinatario: email.destinatario,
+        gmail_message_id: email.gmail_message_id,
       }));
 
     const resultado: ResumenSincronizacion = {
@@ -159,8 +160,11 @@ export const SincronizacionService = {
       const postulacionId = matchearPostulacion({
         remitente: contraparte,
         asunto: detalle.cabeceras.asunto,
+        cuerpo: detalle.cuerpo,
         postulaciones: paraMatcheo,
         emailsEnviados: enviados,
+        inReplyTo: detalle.cabeceras.inReplyTo,
+        references: detalle.cabeceras.references,
       });
 
       const email =
@@ -185,11 +189,11 @@ export const SincronizacionService = {
                 detalle.cuerpoHtml || detalle.cuerpo.slice(0, 4000) || null,
               fecha: detalle.fecha ?? new Date().toISOString(),
               tipoRespuesta:
-                tipoRespuesta === 'rechazo' || tipoRespuesta === 'entrevista'
+                tipoRespuesta !== 'otro'
                   ? tipoRespuesta
                   : null,
               tipoRespuestaFuente:
-                tipoRespuesta === 'rechazo' || tipoRespuesta === 'entrevista'
+                tipoRespuesta !== 'otro'
                   ? 'keywords'
                   : null,
             }));
@@ -211,16 +215,44 @@ export const SincronizacionService = {
 
       const estadoAnterior = estadoPorPostulacion.get(postulacionId ?? -1) ?? null;
       let estadoNuevo: string | null = null;
-      if (
-        !mensaje.esEnviado &&
-        postulacionId !== null &&
-        tipoRespuesta === 'entrevista' &&
-        (estadoAnterior === 'pendiente' || estadoAnterior === 'en_proceso')
-      ) {
-        await PostulacionModel.actualizar(postulacionId, { estado: 'entrevista' });
-        estadoNuevo = 'entrevista';
-        estadoPorPostulacion.set(postulacionId, 'entrevista');
-        resultado.estados_actualizados += 1;
+
+      if (!mensaje.esEnviado && postulacionId !== null) {
+        const transiciones: Record<string, string> = {
+          entrevista: 'entrevista',
+          rechazo: 'rechazado',
+          oferta: 'oferta',
+        };
+
+        const objetivo = transiciones[tipoRespuesta];
+        if (
+          objetivo &&
+          estadoAnterior &&
+          ['pendiente', 'en_proceso', 'entrevista'].includes(estadoAnterior) &&
+          estadoAnterior !== objetivo
+        ) {
+          await PostulacionModel.actualizar(postulacionId, {
+            estado: objetivo,
+            respondio: 1,
+            ultimo_contacto: email.fecha.slice(0, 10),
+          });
+          estadoNuevo = objetivo;
+          estadoPorPostulacion.set(postulacionId, objetivo);
+          resultado.estados_actualizados += 1;
+        } else if (tipoRespuesta === 'novedad' && estadoAnterior === 'pendiente') {
+          await PostulacionModel.actualizar(postulacionId, {
+            estado: 'en_proceso',
+            respondio: 1,
+            ultimo_contacto: email.fecha.slice(0, 10),
+          });
+          estadoNuevo = 'en_proceso';
+          estadoPorPostulacion.set(postulacionId, 'en_proceso');
+          resultado.estados_actualizados += 1;
+        } else {
+          await PostulacionModel.actualizar(postulacionId, {
+            respondio: 1,
+            ultimo_contacto: email.fecha.slice(0, 10),
+          });
+        }
       }
 
       resultado.detalle.push({

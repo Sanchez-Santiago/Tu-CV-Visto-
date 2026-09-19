@@ -123,6 +123,38 @@ describe('GET /api/estrategia/renovaciones', () => {
     );
     expect(ids).not.toContain(conRespuesta);
   });
+
+  it('aplica la regla de 48 horas hábiles para postulaciones enviadas sin respuesta', async () => {
+    const e = await crearEmpresa('Empresa 48h');
+    // Enviada hace 4 días hábiles (más de 48h hábiles) sin respuesta
+    const vencida48h = await crearPostulacion(e, {
+      cantidad_mails_enviados: 1,
+      respondio: 0,
+      ultimo_contacto: addDays(new Date().toISOString().slice(0, 10), -7),
+    });
+
+    const res1 = await request(app)
+      .get('/api/estrategia/renovaciones')
+      .set(auth());
+    const ids1 = res1.body.data.map(
+      (r: { postulacion_id: number }) => r.postulacion_id,
+    );
+    expect(ids1).toContain(vencida48h);
+
+    // Cuando posteriormente llega una respuesta, se actualiza respondio: 1 y sale de Estrategia
+    await db.execute({
+      sql: 'UPDATE postulaciones SET respondio = 1, estado = ? WHERE id = ?',
+      args: ['en_proceso', vencida48h],
+    });
+
+    const res2 = await request(app)
+      .get('/api/estrategia/renovaciones')
+      .set(auth());
+    const ids2 = res2.body.data.map(
+      (r: { postulacion_id: number }) => r.postulacion_id,
+    );
+    expect(ids2).not.toContain(vencida48h);
+  });
 });
 
 describe('GET /api/estrategia/revision-rechazos y confirmar-rechazo', () => {
