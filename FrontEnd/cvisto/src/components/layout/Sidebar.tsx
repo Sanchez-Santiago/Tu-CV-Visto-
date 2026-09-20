@@ -23,7 +23,10 @@ export type NavView =
   | "emails"
   | "estrategia"
   | "estadisticas"
-  | "configuracion";
+  | "configuracion"
+  | "privacidad"
+  | "terminos"
+  | "not-found";
 
 interface SidebarProps {
   currentView: NavView;

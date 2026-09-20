@@ -40,4 +40,16 @@ export const VIEW_META: Record<string, VistaMeta> = {
     title: "Configuración",
     subtitle: "Ajustes de perfil, preferencias y copias de seguridad",
   },
+  privacidad: {
+    title: "Política de Privacidad",
+    subtitle: "Cómo tratamos tus datos personales en CVisto",
+  },
+  terminos: {
+    title: "Términos de Servicio",
+    subtitle: "Condiciones de uso de CVisto",
+  },
+  "not-found": {
+    title: "Página no encontrada",
+    subtitle: "La ruta que buscás no existe",
+  },
 };

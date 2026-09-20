@@ -3,9 +3,15 @@ import { Logo } from "@/src/components/ui/Logo";
 
 interface LoginViewProps {
   onLogin: () => void;
+  onOpenPrivacidad: () => void;
+  onOpenTerminos: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
+export const LoginView: React.FC<LoginViewProps> = ({
+  onLogin,
+  onOpenPrivacidad,
+  onOpenTerminos,
+}) => {
   return (
     <div className="min-h-screen bg-[#080A09] text-[#F2F5F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md skeuo-surface p-8 flex flex-col items-center text-center">
@@ -36,6 +42,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           Al iniciar sesión se crea tu perfil y quedan sincronizados tus datos
           entre esta app y la API de CVisto.
         </p>
+
+        <div className="mt-3 flex items-center justify-center gap-4 text-[11px]">
+          <button
+            type="button"
+            onClick={onOpenPrivacidad}
+            className="text-[#69736D] hover:text-[#4ADE80] underline underline-offset-2 transition-colors cursor-pointer"
+          >
+            Política de Privacidad
+          </button>
+          <button
+            type="button"
+            onClick={onOpenTerminos}
+            className="text-[#69736D] hover:text-[#4ADE80] underline underline-offset-2 transition-colors cursor-pointer"
+          >
+            Términos de Servicio
+          </button>
+        </div>
       </div>
     </div>
   );

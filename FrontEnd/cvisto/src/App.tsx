@@ -38,6 +38,9 @@ import { EmailsView } from "@/src/components/emails/EmailsView";
 import { EstrategiaView } from "@/src/components/estrategia/EstrategiaView";
 import { AnalyticsView } from "@/src/components/analytics/AnalyticsView";
 import { SettingsView } from "@/src/components/settings/SettingsView";
+import { PrivacidadView } from "@/src/components/legal/PrivacidadView";
+import { TerminosView } from "@/src/components/legal/TerminosView";
+import { NotFoundView } from "@/src/components/ui/NotFoundView";
 
 // Modals
 import { ApplicationFormModal } from "@/src/components/applications/ApplicationFormModal";
@@ -64,7 +67,23 @@ function AppContent() {
   const estrategia = useEstrategia();
 
   // Navigation & UI state
-  const [currentView, setCurrentView] = useState<NavView>("dashboard");
+  // Rutas públicas (sin login): /privacidad, /terminos. El resto desconocido
+  // muestra el 404 con el estilo de la app (salvo /auth/* del callback OAuth).
+  const [currentView, setCurrentView] = useState<NavView>(() => {
+    const ruta = window.location.pathname;
+    if (ruta === "/privacidad") return "privacidad";
+    if (ruta === "/terminos" || ruta === "/terminos-y-condiciones") {
+      return "terminos";
+    }
+    if (
+      ruta !== "/" &&
+      !ruta.startsWith("/auth") &&
+      ruta !== "/index.html"
+    ) {
+      return "not-found";
+    }
+    return "dashboard";
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
 
@@ -190,10 +209,37 @@ function AppContent() {
   }
 
   if (auth.necesitaLogin) {
-    return <LoginView onLogin={auth.iniciarLogin} />;
+    if (currentView === "privacidad") {
+      return <PrivacidadView onBack={() => setCurrentView("dashboard")} />;
+    }
+    if (currentView === "terminos") {
+      return <TerminosView onBack={() => setCurrentView("dashboard")} />;
+    }
+    if (currentView === "not-found") {
+      return <NotFoundView onVolver={() => setCurrentView("dashboard")} />;
+    }
+    return (
+      <LoginView
+        onLogin={auth.iniciarLogin}
+        onOpenPrivacidad={() => setCurrentView("privacidad")}
+        onOpenTerminos={() => setCurrentView("terminos")}
+      />
+    );
   }
 
   const usuario = auth.usuario as Usuario;
+
+  // Vistas legales y 404 a pantalla completa (también logueado).
+  const volverDashboard = () => setCurrentView("dashboard");
+  if (currentView === "privacidad") {
+    return <PrivacidadView onBack={volverDashboard} />;
+  }
+  if (currentView === "terminos") {
+    return <TerminosView onBack={volverDashboard} />;
+  }
+  if (currentView === "not-found") {
+    return <NotFoundView onVolver={volverDashboard} />;
+  }
 
   const handleUpdateUsuario = async (data: Partial<Usuario>) => {
     try {
@@ -389,6 +435,8 @@ function AppContent() {
               onExportAllData={handleExportAllData}
               onResetDemoData={() => {}}
               onLogout={handleLogout}
+              onOpenPrivacidad={() => setCurrentView("privacidad")}
+              onOpenTerminos={() => setCurrentView("terminos")}
             />
           )}
         </main>

@@ -36,6 +36,8 @@ interface SettingsViewProps {
   onExportAllData: () => void;
   onResetDemoData: () => void;
   onLogout: () => void;
+  onOpenPrivacidad: () => void;
+  onOpenTerminos: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -44,6 +46,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onExportAllData,
   onResetDemoData,
   onLogout,
+  onOpenPrivacidad,
+  onOpenTerminos,
 }) => {
   const { success, error } = useToast();
   const [nombre, setNombre] = useState(usuario.nombre);
@@ -534,6 +538,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <p>
           <strong className="text-[#F2F5F3]">CVisto Architecture:</strong> Frontend conectado a la API backend (validación Zod de un lado y del otro) con sesión autenticada por Google.
         </p>
+      </div>
+
+      {/* Legal */}
+      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 pt-1">
+        <button
+          type="button"
+          onClick={onOpenPrivacidad}
+          className="text-[11px] text-[#69736D] hover:text-[#4ADE80] underline underline-offset-2 transition-colors cursor-pointer"
+        >
+          Política de Privacidad
+        </button>
+        <button
+          type="button"
+          onClick={onOpenTerminos}
+          className="text-[11px] text-[#69736D] hover:text-[#4ADE80] underline underline-offset-2 transition-colors cursor-pointer"
+        >
+          Términos de Servicio
+        </button>
       </div>
 
       <ExperienciaFormModal
