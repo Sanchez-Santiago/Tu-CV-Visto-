@@ -7,6 +7,44 @@ import { SeguimientoModel } from '../src/models/seguimiento.model';
 import { UsuarioModel } from '../src/models/usuario.model';
 import { firmarToken } from '../src/utils/jwt';
 import { resetTestDb } from './helpers/test-db';
+import {
+  codificarCabecera,
+  codificarDireccion,
+} from '../src/services/gmail.service';
+
+function rawEnviado(): string {
+  const llamadaEnvio = fetchMock.mock.calls[0]!;
+  const bodyEnviado = JSON.parse(String((llamadaEnvio[1] as RequestInit).body));
+  return Buffer.from(bodyEnviado.raw as string, 'base64url').toString('utf8');
+}
+
+/** Decodifica un Subject RFC 2047 (=?UTF-8?B?...?=) a texto plano. */
+function asuntoDecodificado(raw: string): string {
+  const plano = raw.replace(/\r\n /g, '');
+  const linea =
+    plano.split('\r\n').find((l) => l.startsWith('Subject: ')) ?? '';
+  return linea
+    .slice('Subject: '.length)
+    .replace(/=\?UTF-8\?B\?([^?]+)\?=/g, (_, b64: string) =>
+      Buffer.from(b64, 'base64').toString('utf8'),
+    );
+}
+
+/** Extrae y decodifica en base64 una parte text/plain o text/html. */
+function parteDecodificada(raw: string, mime: string): string {
+  const lineas = raw.split('\r\n');
+  const i = lineas.findIndex((l) => l.includes(`Content-Type: ${mime}`));
+  if (i === -1) return '';
+  let j = i + 1;
+  while (j < lineas.length && lineas[j] !== '') j += 1;
+  const chunks: string[] = [];
+  for (let k = j + 1; k < lineas.length; k++) {
+    const linea = lineas[k] ?? '';
+    if (linea.startsWith('--')) break;
+    chunks.push(linea);
+  }
+  return Buffer.from(chunks.join(''), 'base64').toString('utf8');
+}
 
 const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
   void init;
@@ -162,9 +200,11 @@ describe('POST /api/gmail/enviar', () => {
     const llamadaEnvio = fetchMock.mock.calls[0]!;
     const bodyEnviado = JSON.parse(String((llamadaEnvio[1] as RequestInit).body));
     const raw = Buffer.from(bodyEnviado.raw as string, 'base64url').toString('utf8');
-    expect(raw).toContain('Subject: Actualización de mi perfil');
-    expect(raw).toContain('Empresa Gmail');
-    expect(raw).toContain('Backend Engineer');
+    expect(raw).toContain('Subject: =?UTF-8?B?');
+    expect(asuntoDecodificado(raw)).toBe(res.body.data.asunto);
+    expect(asuntoDecodificado(raw)).toContain('Actualización de mi perfil');
+    expect(parteDecodificada(raw, 'text/plain')).toContain('Empresa Gmail');
+    expect(parteDecodificada(raw, 'text/plain')).toContain('Backend Engineer');
 
     const postulacion = await PostulacionModel.obtenerPorId(postulacionId);
     expect(postulacion?.proxima_contacto).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -206,7 +246,7 @@ describe('POST /api/gmail/enviar', () => {
     const bodyEnviado = JSON.parse(String((llamadaEnvio[1] as RequestInit).body));
     const raw = Buffer.from(bodyEnviado.raw as string, 'base64url').toString('utf8');
     expect(raw).toContain('Subject: Mensaje propio');
-    expect(raw).toContain('Texto libre');
+    expect(parteDecodificada(raw, 'text/plain')).toContain('Texto libre');
   });
 
   it('responde 404 si la postulación no existe', async () => {
@@ -355,7 +395,7 @@ describe('POST /api/gmail/enviar', () => {
     const raw = Buffer.from(bodyEnviado.raw as string, 'base64url').toString('utf8');
     expect(raw).toContain('Cc: manager@empresa.com');
     expect(raw).toContain('To: rrhh@empresa.com');
-    expect(raw).toContain('Subject: Postulación con copia');
+    expect(asuntoDecodificado(raw)).toBe('Postulación con copia');
   });
 
   it('envía con adjuntos y genera multipart/mixed', async () => {
@@ -384,7 +424,84 @@ describe('POST /api/gmail/enviar', () => {
     expect(raw).toContain('Content-Disposition: attachment; filename="cv.pdf"');
     expect(raw).toContain('Content-Transfer-Encoding: base64');
     expect(raw).toContain(adjuntoBase64);
-    expect(raw).toContain('Adjunto mi CV');
+    expect(parteDecodificada(raw, 'text/plain')).toContain('Adjunto mi CV');
+  });
+
+  it('preserva tildes y caracteres especiales (round-trip UTF-8)', async () => {
+    fetchMock.mockClear();
+    const res = await request(app)
+      .post('/api/gmail/enviar')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        postulacion_id: postulacionId,
+        destinatario: 'rrhh@empresa.com',
+        asunto: 'Actualización de mi perfil — Santiago Sánchez',
+        cuerpo: 'Hola, adjunto mi CV actualizado: experiencia en Node.js y más.',
+      });
+
+    expect(res.status).toBe(201);
+
+    const raw = rawEnviado();
+    // Sin rastro de texto no-ASCII en crudo fuera de los blobs base64.
+    expect(raw).not.toContain('Actualización de mi perfil —');
+    expect(asuntoDecodificado(raw)).toBe(
+      'Actualización de mi perfil — Santiago Sánchez',
+    );
+    expect(parteDecodificada(raw, 'text/plain')).toContain(
+      'Hola, adjunto mi CV actualizado: experiencia en Node.js y más.',
+    );
+    expect(parteDecodificada(raw, 'text/html')).toContain('Node.js');
+  });
+
+  it('codifica nombres de adjunto no ASCII con filename* (RFC 2231)', async () => {
+    fetchMock.mockClear();
+    const adjuntoBase64 = Buffer.from('fake-pdf').toString('base64');
+    const res = await request(app)
+      .post('/api/gmail/enviar')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        postulacion_id: postulacionId,
+        destinatario: 'rrhh@empresa.com',
+        asunto: 'CV con adjunto',
+        cuerpo: 'Va mi currículum',
+        adjuntos: [
+          {
+            nombre: 'Currículum Santiago.pdf',
+            mime_type: 'application/pdf',
+            contenido_base64: adjuntoBase64,
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+
+    const raw = rawEnviado();
+    expect(raw).toContain("filename*=UTF-8''Curr%C3%ADculum%20Santiago.pdf");
+  });
+});
+
+describe('codificarCabecera / codificarDireccion (RFC 2047)', () => {
+  it('deja el ASCII intacto', () => {
+    expect(codificarCabecera('Mensaje propio')).toBe('Mensaje propio');
+  });
+
+  it('codifica asunto con tildes y round-trip sin pérdida', () => {
+    const original = 'Actualización de mi perfil — Santiago Sánchez';
+    const codificado = codificarCabecera(original);
+    expect(codificado.replace(/\r\n /g, '')).toMatch(
+      /^=\?UTF-8\?B\?.+\?=$/,
+    );
+    expect(asuntoDecodificado(`Subject: ${codificado}`)).toBe(original);
+  });
+
+  it('codifica solo el display-name y deja el email intacto', () => {
+    const codificado = codificarDireccion('Santiago Sánchez <rrhh@empresa.com>');
+    expect(codificado).toContain('<rrhh@empresa.com>');
+    expect(codificado).toMatch(/^=\?UTF-8\?B\?.+\?= <rrhh@empresa\.com>$/);
+  });
+
+  it('deja direcciones simples intactas', () => {
+    expect(codificarDireccion('rrhh@empresa.com')).toBe('rrhh@empresa.com');
   });
 });
 

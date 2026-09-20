@@ -14,6 +14,9 @@ interface ApplicationTableProps {
   onDelete: (id: string) => void;
   onQuickStatusChange: (id: string, newEstado: EstadoPostulacion) => void;
   onViewEmails?: (p: Postulacion) => void;
+  seleccionados?: Set<string>;
+  onToggleSeleccion?: (id: string) => void;
+  onToggleTodos?: () => void;
 }
 
 export const ApplicationTable: React.FC<ApplicationTableProps> = ({
@@ -24,13 +27,32 @@ export const ApplicationTable: React.FC<ApplicationTableProps> = ({
   onDelete,
   onQuickStatusChange,
   onViewEmails,
+  seleccionados,
+  onToggleSeleccion,
+  onToggleTodos,
 }) => {
+  const mostrarSeleccion = Boolean(onToggleSeleccion);
+  const todosMarcados =
+    mostrarSeleccion &&
+    postulaciones.length > 0 &&
+    postulaciones.every((p) => seleccionados?.has(p.id));
   return (
     <div className="skeuo-surface overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-[#222A26] bg-[#101412] text-[#69736D] uppercase text-[11px] font-semibold tracking-wider">
+              {mostrarSeleccion && (
+                <th className="py-3 pl-4 pr-1 w-10">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(todosMarcados)}
+                    onChange={() => onToggleTodos?.()}
+                    className="w-3.5 h-3.5 rounded accent-[#22C55E] cursor-pointer"
+                    title="Seleccionar visibles"
+                  />
+                </th>
+              )}
               <th className="py-3 px-4">Empresa</th>
               <th className="py-3 px-4">Puesto</th>
               <th className="py-3 px-4">Modalidad</th>
@@ -49,6 +71,20 @@ export const ApplicationTable: React.FC<ApplicationTableProps> = ({
                   onClick={() => onSelect(p)}
                   className="hover:bg-[#181D1B] transition-colors cursor-pointer group"
                 >
+                  {mostrarSeleccion && (
+                    <td
+                      className="py-3.5 pl-4 pr-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(seleccionados?.has(p.id))}
+                        onChange={() => onToggleSeleccion?.(p.id)}
+                        className="w-3.5 h-3.5 rounded accent-[#22C55E] cursor-pointer"
+                        title="Seleccionar postulación"
+                      />
+                    </td>
+                  )}
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-[#101412] border border-[#26312B] flex items-center justify-center font-bold text-xs text-[#F2F5F3] group-hover:border-[#22C55E]/40 group-hover:text-[#22C55E] transition-colors shadow-xs">

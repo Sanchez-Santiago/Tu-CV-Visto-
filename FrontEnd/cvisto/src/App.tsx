@@ -48,6 +48,7 @@ import { ComposeEmailModal } from "@/src/components/compose/ComposeEmailModal";
 import { VIEW_META } from "@/src/lib/navegacion";
 import { capturarTokenOAuth } from "@/src/lib/auth";
 import { exportarJson } from "@/src/lib/exportar";
+import type { EstadoPostulacion, TipoSeguimiento } from "@/src/schemas/common";
 
 function AppContent() {
   useTheme();
@@ -114,6 +115,67 @@ function AppContent() {
     habilitado: !auth.cargando && !auth.necesitaLogin,
     sincronizar: estrategiaActions.sincronizar,
   });
+
+  // Acciones en lote para Postulaciones (usan las APIs individuales).
+  const bulkEliminarPostulaciones = async (ids: string[]) => {
+    try {
+      await Promise.all(ids.map((id) => postulaciones.eliminar(id)));
+      if (
+        apps.selectedApplication &&
+        ids.includes(apps.selectedApplication.id)
+      ) {
+        apps.setSelectedApplication(null);
+      }
+      success(`${ids.length} postulación(es) eliminada(s)`);
+    } catch (err) {
+      error("No se pudieron eliminar todas las postulaciones");
+      throw err;
+    }
+  };
+
+  const bulkCambiarEstado = async (
+    ids: string[],
+    estado: EstadoPostulacion,
+  ) => {
+    try {
+      await Promise.all(
+        ids.map((id) => postulaciones.cambiarEstado(id, estado)),
+      );
+      success(`${ids.length} postulación(es) → "${estado.replace("_", " ")}"`);
+    } catch (err) {
+      error("No se pudo actualizar el estado de todas");
+      throw err;
+    }
+  };
+
+  const bulkProgramarSeguimientos = async (
+    ids: string[],
+    datos: {
+      fechaProgramada: string;
+      tipoSeguimiento: TipoSeguimiento;
+      observaciones?: string | null;
+    },
+  ) => {
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          seguimientos.crear({
+            postulacionId: Number(id),
+            fechaProgramada: datos.fechaProgramada,
+            tipoSeguimiento: datos.tipoSeguimiento,
+            enviado: 0,
+            requiereAprobacion: 1,
+            fechaEnvio: null,
+            observaciones: datos.observaciones ?? null,
+          }),
+        ),
+      );
+      success(`${ids.length} seguimiento(s) programado(s)`);
+    } catch (err) {
+      error("No se pudieron programar todos los seguimientos");
+      throw err;
+    }
+  };
 
   // Guard: handle OAuth callback landing — read token from URL fragment
   // Aplica en cualquier ruta por si el redirect cae en "/" u otro path.
@@ -237,6 +299,9 @@ function AppContent() {
               onEditApplication={apps.abrirEdicion}
               onDeleteApplication={apps.eliminar}
               onQuickStatusChange={apps.cambiarEstado}
+              onBulkDelete={bulkEliminarPostulaciones}
+              onBulkStatusChange={bulkCambiarEstado}
+              onBulkProgramar={bulkProgramarSeguimientos}
               onOpenNewModal={apps.abrirNuevo}
               searchQuery={globalSearch}
               onSearchChange={setGlobalSearch}
@@ -275,9 +340,12 @@ function AppContent() {
               seguimientos={seguimientos.data}
               postulaciones={postulaciones.data}
               empresas={empresas.data}
+              emails={emails.data}
+              firmas={firmas.data}
               onToggleEnviado={seguimientosActions.alternar}
               onDeleteFollowup={seguimientosActions.eliminar}
               onOpenNewTaskModal={seguimientosActions.abrirNuevaTarea}
+              onComposeEmail={compose.abrirComposeConPrefill}
             />
           )}
 
@@ -299,10 +367,13 @@ function AppContent() {
               estadisticas={estrategia.estadisticas}
               cargando={estrategia.cargando}
               error={estrategia.error}
+              emails={emails.data}
+              firmas={firmas.data}
               onSincronizar={estrategiaActions.sincronizar}
               onAnalizar={estrategiaActions.analizar}
               onRenovar={estrategiaActions.renovar}
               onNavigate={setCurrentView}
+              onComposeEmail={compose.abrirComposeConPrefill}
             />
           )}
 
@@ -354,6 +425,17 @@ function AppContent() {
               )
             : []
         }
+        linkedEmails={
+          apps.selectedApplication
+            ? emails.data.filter(
+                (e) =>
+                  e.postulacionId !== null &&
+                  Number(e.postulacionId) === Number(apps.selectedApplication.id)
+              )
+            : []
+        }
+        firmas={firmas.data}
+        onComposeEmail={compose.abrirComposeConPrefill}
       />
 
       {/* Followup Task Modal */}

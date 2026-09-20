@@ -1,16 +1,20 @@
 import React, { useState, useMemo } from "react";
-import { 
-  Plus, 
-  LayoutList, 
-  LayoutGrid, 
+import {
+  Plus,
+  LayoutList,
+  LayoutGrid,
   Kanban,
   Briefcase,
-  Mail
+  Mail,
+  Trash2,
+  X,
+  CalendarClock,
 } from "lucide-react";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
-import type { EstadoPostulacion } from "@/src/schemas/common";
+import type { EstadoPostulacion, TipoSeguimiento } from "@/src/schemas/common";
 import { Button } from "@/src/components/ui/Button";
+import { Modal } from "@/src/components/ui/Modal";
 import { SectionHeader } from "@/src/components/ui/SectionHeader";
 import { SearchInput } from "@/src/components/ui/SearchInput";
 import { EmptyState } from "@/src/components/ui/EmptyState";
@@ -18,9 +22,18 @@ import { ApplicationTable } from "./ApplicationTable";
 import { ApplicationCard } from "./ApplicationCard";
 import { Badge } from "@/src/components/ui/Badge";
 import { nombreEmpresa } from "@/src/lib/nombres";
+import { OPCIONES_ESTADO } from "@/src/lib/estados";
 import { LinkedEmailsModal } from "@/src/components/emails/LinkedEmailsModal";
 import type { Email } from "@/src/schemas/email";
 import type { Firma } from "@/src/schemas/firma";
+
+const TIPOS_SEGUIMIENTO: { value: TipoSeguimiento; label: string }[] = [
+  { value: "novedad", label: "✨ Novedad de perfil" },
+  { value: "nuevo_proyecto", label: "💻 Nuevo proyecto" },
+  { value: "disponibilidad", label: "🟢 Disponibilidad" },
+  { value: "recordatorio", label: "⏰ Recordatorio" },
+  { value: "consulta", label: "💬 Consulta" },
+];
 
 interface ApplicationsViewProps {
   postulaciones: Postulacion[];
@@ -31,6 +44,16 @@ interface ApplicationsViewProps {
   onEditApplication: (p: Postulacion) => void;
   onDeleteApplication: (id: string) => void;
   onQuickStatusChange: (id: string, newEstado: EstadoPostulacion) => void;
+  onBulkDelete: (ids: string[]) => Promise<void>;
+  onBulkStatusChange: (ids: string[], estado: EstadoPostulacion) => Promise<void>;
+  onBulkProgramar: (
+    ids: string[],
+    datos: {
+      fechaProgramada: string;
+      tipoSeguimiento: TipoSeguimiento;
+      observaciones?: string | null;
+    },
+  ) => Promise<void>;
   onOpenNewModal: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
@@ -50,6 +73,9 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   onEditApplication,
   onDeleteApplication,
   onQuickStatusChange,
+  onBulkDelete,
+  onBulkStatusChange,
+  onBulkProgramar,
   onOpenNewModal,
   searchQuery,
   onSearchChange,
@@ -58,6 +84,16 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>("todos");
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
   const [linkedEmailsPostulacion, setLinkedEmailsPostulacion] = useState<Postulacion | null>(null);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [bulkEstado, setBulkEstado] = useState<EstadoPostulacion>("en_proceso");
+  const [bulkConfirmarBorrado, setBulkConfirmarBorrado] = useState(false);
+  const [bulkProgramarAbierto, setBulkProgramarAbierto] = useState(false);
+  const [bulkFecha, setBulkFecha] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [bulkTipo, setBulkTipo] = useState<TipoSeguimiento>("novedad");
+  const [bulkObs, setBulkObs] = useState("");
+  const [ejecutandoBulk, setEjecutandoBulk] = useState(false);
 
   const filterTabs = [
     { id: "todos", label: "Todos", count: postulaciones.length },
@@ -115,6 +151,43 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
     { id: "entrevista", title: "Entrevista" },
     { id: "oferta", title: "Oferta" },
   ];
+
+  // Selección múltiple
+  const toggleSeleccion = (id: string) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleTodosFiltrados = () => {
+    setSeleccionados((prev) => {
+      const ids = filteredPostulaciones.map((p) => p.id);
+      const todosMarcados =
+        ids.length > 0 && ids.every((id) => prev.has(id));
+      if (todosMarcados) return new Set();
+      return new Set(ids);
+    });
+  };
+
+  const limpiarSeleccion = () => setSeleccionados(new Set());
+
+  const idsSeleccionados = useMemo(
+    () => filteredPostulaciones.filter((p) => seleccionados.has(p.id)).map((p) => p.id),
+    [filteredPostulaciones, seleccionados],
+  );
+
+  const ejecutarBulk = async (accion: () => Promise<void>) => {
+    setEjecutandoBulk(true);
+    try {
+      await accion();
+      limpiarSeleccion();
+    } finally {
+      setEjecutandoBulk(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -212,6 +285,67 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {seleccionados.size > 0 && (
+        <div className="skeuo-surface p-3 flex flex-wrap items-center gap-2.5">
+          <span className="text-xs font-semibold text-[#F2F5F3] bg-[#22C55E]/15 border border-[#22C55E]/30 rounded-full px-2.5 py-1">
+            {seleccionados.size} seleccionada(s)
+          </span>
+
+          <select
+            value={bulkEstado}
+            onChange={(e) => setBulkEstado(e.target.value as EstadoPostulacion)}
+            className="bg-[#101412] text-xs text-[#F2F5F3] border border-[#2A3530] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#22C55E] cursor-pointer"
+            title="Cambiar estado de las seleccionadas"
+          >
+            {OPCIONES_ESTADO.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={ejecutandoBulk}
+            onClick={() =>
+              ejecutarBulk(() => onBulkStatusChange(idsSeleccionados, bulkEstado))
+            }
+          >
+            Cambiar estado
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={ejecutandoBulk}
+            onClick={() => setBulkProgramarAbierto(true)}
+            leftIcon={<CalendarClock className="w-3.5 h-3.5" />}
+          >
+            Programar contacto
+          </Button>
+
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={ejecutandoBulk}
+            onClick={() => setBulkConfirmarBorrado(true)}
+            leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+          >
+            Borrar
+          </Button>
+
+          <button
+            type="button"
+            onClick={limpiarSeleccion}
+            className="ml-auto p-1.5 rounded text-[#69736D] hover:text-[#F2F5F3] hover:bg-[#181D1B] transition-colors"
+            title="Limpiar selección"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Main Content Area */}
       {filteredPostulaciones.length === 0 ? (
         <EmptyState
@@ -269,6 +403,14 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
                           {empresa}
                         </span>
                         <div className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={seleccionados.has(p.id)}
+                            onChange={() => toggleSeleccion(p.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-3.5 h-3.5 rounded accent-[#22C55E] cursor-pointer"
+                            title="Seleccionar postulación"
+                          />
                           <button
                             type="button"
                             onClick={(e) => {
@@ -314,6 +456,8 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
               onDelete={onDeleteApplication}
               onQuickStatusChange={onQuickStatusChange}
               onViewEmails={setLinkedEmailsPostulacion}
+              seleccionado={seleccionados.has(p.id)}
+              onToggleSeleccion={toggleSeleccion}
             />
           ))}
         </div>
@@ -327,6 +471,9 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
           onDelete={onDeleteApplication}
           onQuickStatusChange={onQuickStatusChange}
           onViewEmails={setLinkedEmailsPostulacion}
+          seleccionados={seleccionados}
+          onToggleSeleccion={toggleSeleccion}
+          onToggleTodos={toggleTodosFiltrados}
         />
       )}
 
@@ -354,6 +501,108 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
         }
         onComposeEmail={onComposeEmail}
       />
+
+      {/* Confirmar borrado en lote */}
+      <Modal
+        isOpen={bulkConfirmarBorrado}
+        onClose={() => setBulkConfirmarBorrado(false)}
+        title="Borrar postulaciones"
+        description={`Esta acción eliminará ${seleccionados.size} postulación(es) del workspace.`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-[#A7B0AA] leading-relaxed">
+            ¿Estás seguro? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setBulkConfirmarBorrado(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              disabled={ejecutandoBulk}
+              onClick={() => {
+                setBulkConfirmarBorrado(false);
+                void ejecutarBulk(() => onBulkDelete(idsSeleccionados));
+              }}
+            >
+              Borrar {seleccionados.size}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Programar contacto en lote */}
+      <Modal
+        isOpen={bulkProgramarAbierto}
+        onClose={() => setBulkProgramarAbierto(false)}
+        title="Programar contacto"
+        description={`Crea una tarea de seguimiento pendiente para cada una de las ${seleccionados.size} postulación(es) seleccionada(s). No envía mails.`}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs text-[#A7B0AA] font-medium">
+                Fecha programada
+              </span>
+              <input
+                type="date"
+                value={bulkFecha}
+                onChange={(e) => setBulkFecha(e.target.value)}
+                className="mt-1 w-full skeuo-input rounded-[10px] text-xs py-2 px-3 text-[#F2F5F3] focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-[#A7B0AA] font-medium">
+                Tipo de contacto
+              </span>
+              <select
+                value={bulkTipo}
+                onChange={(e) => setBulkTipo(e.target.value as TipoSeguimiento)}
+                className="mt-1 w-full bg-[#101412] text-xs text-[#F2F5F3] border border-[#2A3530] rounded-[10px] px-3 py-2 focus:outline-none focus:border-[#22C55E] cursor-pointer"
+              >
+                {TIPOS_SEGUIMIENTO.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-xs text-[#A7B0AA] font-medium">
+              Observaciones (opcional)
+            </span>
+            <textarea
+              value={bulkObs}
+              onChange={(e) => setBulkObs(e.target.value)}
+              rows={3}
+              placeholder="Notas para estos seguimientos..."
+              className="mt-1 w-full skeuo-input rounded-[10px] text-xs py-2 px-3 text-[#F2F5F3] placeholder:text-[#69736D] focus:outline-none resize-none"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setBulkProgramarAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              disabled={ejecutandoBulk || !bulkFecha}
+              onClick={() => {
+                setBulkProgramarAbierto(false);
+                void ejecutarBulk(() =>
+                  onBulkProgramar(idsSeleccionados, {
+                    fechaProgramada: bulkFecha,
+                    tipoSeguimiento: bulkTipo,
+                    observaciones: bulkObs.trim() || null,
+                  }),
+                );
+              }}
+            >
+              Programar {seleccionados.size}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

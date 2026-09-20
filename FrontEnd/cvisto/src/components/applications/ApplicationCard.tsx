@@ -15,6 +15,8 @@ interface ApplicationCardProps {
   onDelete: (id: string) => void;
   onQuickStatusChange: (id: string, newEstado: EstadoPostulacion) => void;
   onViewEmails?: (p: Postulacion) => void;
+  seleccionado?: boolean;
+  onToggleSeleccion?: (id: string) => void;
 }
 
 export const ApplicationCard: React.FC<ApplicationCardProps> = ({
@@ -25,6 +27,8 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
   onDelete,
   onQuickStatusChange,
   onViewEmails,
+  seleccionado = false,
+  onToggleSeleccion,
 }) => {
   const empresa = nombreEmpresa(empresas, postulacion.empresaId);
 
@@ -92,6 +96,15 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
         </select>
 
         <div className="flex items-center gap-1">
+          {onToggleSeleccion && (
+            <input
+              type="checkbox"
+              checked={seleccionado}
+              onChange={() => onToggleSeleccion(postulacion.id)}
+              className="w-3.5 h-3.5 rounded accent-[#22C55E] cursor-pointer mr-0.5"
+              title="Seleccionar postulación"
+            />
+          )}
           {onViewEmails && (
             <button
               type="button"

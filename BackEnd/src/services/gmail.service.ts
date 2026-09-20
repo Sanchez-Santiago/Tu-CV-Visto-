@@ -204,8 +204,38 @@ async function requestGmail(
   return res.json() as Promise<RespuestaGmail>;
 }
 
-function limpiarCabecera(valor: string): string {
-  return valor.replace(/[\r\n]/g, ' ').trim();
+/**
+ * Codifica una cabecera según RFC 2047 si tiene caracteres no ASCII.
+ * El texto ASCII viaja tal cual; el resto como =?UTF-8?B?...?= plegado.
+ */
+export function codificarCabecera(valor: string): string {
+  const limpio = valor.replace(/[\r\n]+/g, ' ').trim();
+  if (/^[\x20-\x7E]*$/.test(limpio)) return limpio;
+  const base64 = Buffer.from(limpio, 'utf8').toString('base64');
+  const partes: string[] = [];
+  for (let i = 0; i < base64.length; i += 60) {
+    partes.push(`=?UTF-8?B?${base64.slice(i, i + 60)}?=`);
+  }
+  return partes.join('\r\n ');
+}
+
+/** Codifica solo el display-name de "Nombre <mail>", deja la dirección intacta. */
+export function codificarDireccion(direccion: string): string {
+  const limpia = direccion.replace(/[\r\n]+/g, ' ').trim();
+  const match = limpia.match(/^(.*)<([^<>]+)>$/);
+  if (!match) return codificarCabecera(limpia);
+  const nombre = (match[1] ?? '').trim().replace(/^"|"$/g, '');
+  const addr = (match[2] ?? '').trim();
+  if (!nombre) return addr;
+  return `${codificarCabecera(nombre)} <${addr}>`;
+}
+
+/** Percent-encoding RFC 2231 para nombres de archivo no ASCII. */
+function codificarRfc2231(valor: string): string {
+  return encodeURIComponent(valor).replace(/['()]/g, (c) => {
+    const hex = c.charCodeAt(0).toString(16).toUpperCase();
+    return `%${hex.length === 1 ? `0${hex}` : hex}`;
+  });
 }
 
 function encriptarNombreAdjunto(nombre: string, indice: number): string {
@@ -224,13 +254,13 @@ function escaparTextoPlano(cuerpo: string): string {
 
 const TEXTO_PLANO_PART = [
   'Content-Type: text/plain; charset="UTF-8"',
-  'Content-Transfer-Encoding: 8bit',
+  'Content-Transfer-Encoding: base64',
   '',
 ];
 
 const HTML_PART = [
   'Content-Type: text/html; charset="UTF-8"',
-  'Content-Transfer-Encoding: 8bit',
+  'Content-Transfer-Encoding: base64',
   '',
 ];
 
@@ -254,11 +284,17 @@ function construirMensajeRaw(
   const asunto = input.asunto.replace(/[\r\n]+/g, ' ').trim();
   const cuerpo = escaparTextoPlano(input.cuerpo);
   const html = input.html.replace(/\r?\n/g, '\r\n');
+  const cuerpoBase64 = envolverBase64(
+    Buffer.from(cuerpo, 'utf8').toString('base64'),
+  );
+  const htmlBase64 = envolverBase64(
+    Buffer.from(html, 'utf8').toString('base64'),
+  );
 
   const cabecerasComunes = [
-    `To: ${input.destinatario}`,
-    ...(input.cc ? [`Cc: ${limpiarCabecera(input.cc)}`] : []),
-    `Subject: ${asunto}`,
+    `To: ${codificarDireccion(input.destinatario)}`,
+    ...(input.cc ? [`Cc: ${codificarDireccion(input.cc)}`] : []),
+    `Subject: ${codificarCabecera(asunto)}`,
   ];
 
   const tieneAdjuntos = (adjuntos ?? []).length > 0;
@@ -270,10 +306,10 @@ function construirMensajeRaw(
     '',
     `--${boundaryAlternativa}`,
     ...TEXTO_PLANO_PART,
-    cuerpo,
+    cuerpoBase64,
     `--${boundaryAlternativa}`,
     ...HTML_PART,
-    html,
+    htmlBase64,
     `--${boundaryAlternativa}--`,
   ];
 
@@ -322,10 +358,13 @@ function construirMensajeRaw(
     for (let i = 0; i < (adjuntos ?? []).length; i += 1) {
       const adjunto = (adjuntos ?? [])[i] as AdjuntoGmail;
       const nombre = encriptarNombreAdjunto(adjunto.nombre, i);
+      const nombreExtra = /[^\x20-\x7E]/.test(adjunto.nombre)
+        ? `; filename*=UTF-8''${codificarRfc2231(adjunto.nombre)}`
+        : '';
       cuerpoMulti.push(
         `--${boundaryMixto}`,
-        `Content-Type: ${adjunto.mimeType}; name="${nombre}"`,
-        `Content-Disposition: attachment; filename="${nombre}"`,
+        `Content-Type: ${adjunto.mimeType}; name="${nombre}"${nombreExtra}`,
+        `Content-Disposition: attachment; filename="${nombre}"${nombreExtra}`,
         'Content-Transfer-Encoding: base64',
         '',
         envolverBase64(adjunto.contenidoBase64),

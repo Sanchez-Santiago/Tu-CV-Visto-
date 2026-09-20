@@ -1,11 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Modal } from "@/src/components/ui/Modal";
 import { Button } from "@/src/components/ui/Button";
 import { Badge } from "@/src/components/ui/Badge";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Seguimiento } from "@/src/schemas/seguimiento";
 import type { Empresa } from "@/src/schemas/empresa";
+import type { Email } from "@/src/schemas/email";
+import type { Firma } from "@/src/schemas/firma";
 import type { EstadoPostulacion } from "@/src/schemas/common";
+import { EmailViewer } from "@/src/components/emails/EmailViewer";
+import { textoSinHtml } from "@/src/lib/html";
 import {
   Building2,
   Briefcase,
@@ -17,6 +21,11 @@ import {
   Trash2,
   Edit3,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Reply,
 } from "lucide-react";
 import { nombreEmpresa } from "@/src/lib/nombres";
 import { OPCIONES_ESTADO } from "@/src/lib/estados";
@@ -39,8 +48,23 @@ interface ApplicationDetailModalProps {
     dias?: number
   ) => Promise<void>;
   linkedFollowups: Seguimiento[];
+  linkedEmails: Email[];
+  firmas?: Firma[];
+  onComposeEmail?: (prefill: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+  }) => void;
   empresas: Empresa[];
 }
+
+const badgeTipoRespuesta: Record<string, string> = {
+  entrevista: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  oferta: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  rechazo: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+  novedad: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  contacto: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+};
 
 export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
   postulacion,
@@ -52,9 +76,38 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
   onAddFollowup,
   onRegisterInteraction,
   linkedFollowups,
+  linkedEmails,
+  firmas = [],
+  onComposeEmail,
   empresas,
 }) => {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
+
+  const emailsOrdenados = useMemo(
+    () =>
+      [...linkedEmails].sort((a, b) =>
+        String(b.fecha ?? "").localeCompare(String(a.fecha ?? "")),
+      ),
+    [linkedEmails],
+  );
+
+  const handleResponder = (email: Email) => {
+    if (!onComposeEmail) return;
+    const destinatario =
+      email.enviado === 1 ? email.destinatario : email.remitente;
+    const asunto = email.asunto?.toLowerCase().startsWith("re:")
+      ? email.asunto
+      : `Re: ${email.asunto ?? ""}`;
+    onComposeEmail({
+      destinatario,
+      asunto,
+      cuerpo: `\n\n--- El ${email.fecha}, ${email.remitente} escribió: ---\n> ${textoSinHtml(
+        email.cuerpoHtml || email.contenidoResumen || "",
+      ).slice(0, 500)}`,
+    });
+    onClose();
+  };
 
   if (!postulacion) return null;
 
@@ -348,6 +401,96 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Historial de emails vinculados */}
+          <div className="p-4 rounded-xl bg-[#101412] border border-[#222A26] space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[#A7B0AA] flex items-center gap-2">
+              <Mail className="w-3.5 h-3.5 text-[#22C55E]" /> Historial de emails
+              <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-[#181D1B] text-[#69736D] border border-[#232C28]">
+                {emailsOrdenados.length}
+              </span>
+            </h4>
+
+            {emailsOrdenados.length === 0 ? (
+              <p className="text-xs text-[#69736D] py-2">
+                Sin correos vinculados todavía.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {emailsOrdenados.map((email) => {
+                  const expandido = expandedEmailId === email.id;
+                  const badge = email.tipoRespuesta
+                    ? badgeTipoRespuesta[email.tipoRespuesta]
+                    : undefined;
+                  return (
+                    <div
+                      key={email.id}
+                      className="rounded-lg bg-[#141817] border border-[#1F2723] overflow-hidden"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedEmailId(expandido ? null : email.id)
+                        }
+                        className="w-full p-2.5 flex items-center gap-2.5 text-left hover:bg-[#181D1B] transition-colors cursor-pointer"
+                      >
+                        <span className="shrink-0">
+                          {email.enviado === 1 ? (
+                            <ArrowUpRight className="w-3.5 h-3.5 text-[#22C55E]" />
+                          ) : (
+                            <ArrowDownLeft className="w-3.5 h-3.5 text-sky-400" />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-medium text-[#F2F5F3] truncate">
+                            {email.asunto || "(sin asunto)"}
+                          </span>
+                          <span className="block text-[11px] text-[#69736D] truncate">
+                            {email.enviado === 1 ? email.destinatario : email.remitente}
+                            {" • "}
+                            {email.fecha}
+                          </span>
+                        </span>
+                        {badge && email.tipoRespuesta && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded border capitalize shrink-0 ${badge}`}
+                          >
+                            {email.tipoRespuesta}
+                          </span>
+                        )}
+                        {expandido ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-[#69736D] shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-[#69736D] shrink-0" />
+                        )}
+                      </button>
+                      {expandido && (
+                        <div className="border-t border-[#1F2723] p-2.5 space-y-2">
+                          <EmailViewer
+                            email={email}
+                            firmas={firmas}
+                            compact
+                          />
+                          {onComposeEmail && (
+                            <div className="flex justify-end">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleResponder(email)}
+                                leftIcon={<Reply className="w-3.5 h-3.5" />}
+                              >
+                                Responder
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

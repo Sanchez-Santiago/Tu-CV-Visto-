@@ -10,14 +10,18 @@ import {
   Github,
   BellRing,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 import type { Seguimiento } from "@/src/schemas/seguimiento";
 import type { Postulacion } from "@/src/schemas/postulacion";
 import type { Empresa } from "@/src/schemas/empresa";
+import type { Email } from "@/src/schemas/email";
+import type { Firma } from "@/src/schemas/firma";
 import type { TipoSeguimiento } from "@/src/schemas/common";
 import { Button } from "@/src/components/ui/Button";
 import { SectionHeader } from "@/src/components/ui/SectionHeader";
 import { EmptyState } from "@/src/components/ui/EmptyState";
+import { LinkedEmailsModal } from "@/src/components/emails/LinkedEmailsModal";
 import { nombreEmpresa } from "@/src/lib/nombres";
 import { TIPO_SEGUIMIENTO_LABELS } from "@/src/lib/estados";
 import { postulacionVista } from "@/src/lib/postulaciones";
@@ -26,9 +30,16 @@ interface FollowupsViewProps {
   seguimientos: Seguimiento[];
   postulaciones: Postulacion[];
   empresas: Empresa[];
+  emails?: Email[];
+  firmas?: Firma[];
   onToggleEnviado: (id: string) => void;
   onDeleteFollowup: (id: string) => void;
   onOpenNewTaskModal: () => void;
+  onComposeEmail?: (prefill: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+  }) => void;
 }
 
 const getTipoIcon = (tipo: TipoSeguimiento) => {
@@ -54,11 +65,15 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
   seguimientos,
   postulaciones,
   empresas,
+  emails = [],
+  firmas = [],
   onToggleEnviado,
   onDeleteFollowup,
   onOpenNewTaskModal,
+  onComposeEmail,
 }) => {
   const [filter, setFilter] = useState<"pendientes" | "estrategicos" | "todas" | "enviados">("pendientes");
+  const [mailsSeguimiento, setMailsSeguimiento] = useState<Seguimiento | null>(null);
 
   const postInfo = (f: Seguimiento) =>
     postulacionVista(f.postulacionId, postulaciones, empresas);
@@ -212,6 +227,13 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
 
                 <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                   <button
+                    onClick={() => setMailsSeguimiento(item)}
+                    className="p-2 text-[#69736D] hover:text-[#22C55E] rounded-lg hover:bg-[#181D1B] transition-colors cursor-pointer"
+                    title="Ver emails vinculados"
+                  >
+                    <Mail className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => onDeleteFollowup(item.id)}
                     className="p-2 text-[#69736D] hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
                     title="Eliminar tarea"
@@ -224,6 +246,30 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({
           })
         )}
       </div>
+
+      {/* Modal de emails vinculados al seguimiento */}
+      <LinkedEmailsModal
+        isOpen={Boolean(mailsSeguimiento)}
+        onClose={() => setMailsSeguimiento(null)}
+        title={
+          mailsSeguimiento
+            ? `${postInfo(mailsSeguimiento).empresa} — ${postInfo(mailsSeguimiento).postulacion?.puesto ?? ""}`
+            : ""
+        }
+        subtitle="Correos asociados a este proceso de postulación"
+        firmas={firmas}
+        emails={
+          mailsSeguimiento
+            ? emails.filter(
+                (e) =>
+                  e.postulacionId !== null &&
+                  Number(e.postulacionId) ===
+                    Number(mailsSeguimiento.postulacionId),
+              )
+            : []
+        }
+        onComposeEmail={onComposeEmail}
+      />
     </div>
   );
 };

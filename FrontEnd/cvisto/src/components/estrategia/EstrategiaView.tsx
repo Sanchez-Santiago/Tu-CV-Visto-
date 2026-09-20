@@ -10,11 +10,15 @@ import {
   ChevronUp,
   Inbox,
   Sparkles,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
 import { Modal } from "@/src/components/ui/Modal";
 import type { NavView } from "@/src/components/layout/Sidebar";
 import { useFirmas } from "@/src/hooks/useFirmas";
+import { LinkedEmailsModal } from "@/src/components/emails/LinkedEmailsModal";
+import type { Email } from "@/src/schemas/email";
+import type { Firma } from "@/src/schemas/firma";
 import type {
   ResumenSincronizacion,
   ResumenAnalisisIA,
@@ -26,6 +30,8 @@ interface EstrategiaViewProps {
   estadisticas: import("@/src/lib/api/client").EstadisticasEstrategia | null;
   cargando: boolean;
   error: string | null;
+  emails?: Email[];
+  firmas?: Firma[];
   onSincronizar: (dias: number) => Promise<ResumenSincronizacion>;
   onAnalizar: () => Promise<ResumenAnalisisIA>;
   onRenovar: (
@@ -33,6 +39,11 @@ interface EstrategiaViewProps {
     firmas?: number[],
   ) => Promise<unknown>;
   onNavigate: (view: NavView) => void;
+  onComposeEmail?: (prefill: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+  }) => void;
 }
 
 const tipoRespuestaLabels: Record<TipoRespuestaDetectada, string> = {
@@ -57,10 +68,13 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
   estadisticas,
   cargando,
   error,
+  emails = [],
+  firmas: firmasProp,
   onSincronizar,
   onAnalizar,
   onRenovar,
   onNavigate,
+  onComposeEmail,
 }) => {
   const [sincronizando, setSincronizando] = useState(false);
   const [analizandoIA, setAnalizandoIA] = useState(false);
@@ -73,6 +87,11 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
   } | null>(null);
 
   const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [mailsPostulacion, setMailsPostulacion] = useState<{
+    postulacion_id: number;
+    empresa: string;
+    puesto: string;
+  } | null>(null);
   const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
   const [ediciones, setEdiciones] = useState<
     Record<number, { asunto: string; cuerpo: string }>
@@ -429,6 +448,20 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
                     </div>
                     <button
                       type="button"
+                      onClick={() =>
+                        setMailsPostulacion({
+                          postulacion_id: r.postulacion_id,
+                          empresa: r.empresa,
+                          puesto: r.puesto,
+                        })
+                      }
+                      className="p-1.5 text-[#69736D] hover:text-[#22C55E] rounded-lg hover:bg-[#181D1B] transition-colors cursor-pointer"
+                      title="Ver emails vinculados"
+                    >
+                      <Mail className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => toggleExpandido(r.postulacion_id)}
                       className="p-1.5 text-[#69736D] hover:text-[#F2F5F3] rounded-lg hover:bg-[#181D1B] transition-colors cursor-pointer"
                       title={expandido ? "Contraer vista previa" : "Editar vista previa"}
@@ -657,6 +690,29 @@ export const EstrategiaView: React.FC<EstrategiaViewProps> = ({
           </div>
         )}
       </Modal>
+
+      {/* Modal de emails vinculados a la renovación */}
+      <LinkedEmailsModal
+        isOpen={Boolean(mailsPostulacion)}
+        onClose={() => setMailsPostulacion(null)}
+        title={
+          mailsPostulacion
+            ? `${mailsPostulacion.puesto} — ${mailsPostulacion.empresa}`
+            : ""
+        }
+        subtitle="Correos asociados a este proceso de postulación"
+        firmas={firmasProp ?? []}
+        emails={
+          mailsPostulacion
+            ? emails.filter(
+                (e) =>
+                  e.postulacionId !== null &&
+                  Number(e.postulacionId) === Number(mailsPostulacion.postulacion_id),
+              )
+            : []
+        }
+        onComposeEmail={onComposeEmail}
+      />
     </div>
   );
 };
