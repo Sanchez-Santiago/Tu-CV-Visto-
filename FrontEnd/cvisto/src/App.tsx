@@ -127,9 +127,8 @@ function AppContent() {
         apps.setSelectedApplication(null);
       }
       success(`${ids.length} postulación(es) eliminada(s)`);
-    } catch (err) {
+    } catch {
       error("No se pudieron eliminar todas las postulaciones");
-      throw err;
     }
   };
 
@@ -142,9 +141,8 @@ function AppContent() {
         ids.map((id) => postulaciones.cambiarEstado(id, estado)),
       );
       success(`${ids.length} postulación(es) → "${estado.replace("_", " ")}"`);
-    } catch (err) {
+    } catch {
       error("No se pudo actualizar el estado de todas");
-      throw err;
     }
   };
 
@@ -171,9 +169,8 @@ function AppContent() {
         ),
       );
       success(`${ids.length} seguimiento(s) programado(s)`);
-    } catch (err) {
+    } catch {
       error("No se pudieron programar todos los seguimientos");
-      throw err;
     }
   };
 

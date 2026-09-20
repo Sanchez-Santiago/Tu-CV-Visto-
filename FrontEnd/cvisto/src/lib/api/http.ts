@@ -34,17 +34,21 @@ export async function request<T>(
     cache: "no-store",
     ...options,
   });
-  const body = await res.json();
+  const texto = await res.text();
+  const body = texto
+    ? (JSON.parse(texto) as {
+        ok?: boolean;
+        data?: unknown;
+        error?: { message?: string; details?: unknown } | string;
+      })
+    : undefined;
   if (res.status === 401) {
     sesionUsuarioId = null;
     sessionStorage.removeItem("cvisto_token");
     throw new Error("Sesión expirada");
   }
   if (body?.ok === false || res.status >= 400) {
-    const err = body?.error as
-      | { message?: string; details?: unknown }
-      | string
-      | undefined;
+    const err = body?.error;
     const msgBase =
       typeof err === "object"
         ? err.message
@@ -55,5 +59,5 @@ export async function request<T>(
     }
     throw new Error(`${msgBase}${detalle}`);
   }
-  return body.data as T;
+  return body?.data as T;
 }
