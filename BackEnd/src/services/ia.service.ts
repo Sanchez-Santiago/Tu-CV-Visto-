@@ -1,11 +1,5 @@
-import { env } from '../config/env';
 import type { TipoRespuesta } from '../types/common';
-
-const MODELO = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const URL_GEMINI = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
-const TIMEOUT_MS = 60_000;
-const RETRIES = 3;
-const ESPERAS_RETRY_MS = [2_000, 5_000, 10_000];
+import { llamarIAConFallback, ordenProveedores } from './ia-proveedores';
 
 export const TAMANIO_LOTE = 5;
 export const MAX_CONTENIDO_POR_EMAIL = 2500;
@@ -45,12 +39,8 @@ export interface DeteccionPostulacionIA {
   estado_sugerido?: string | null;
 }
 
-export interface GeminiErrorDetalle {
-  status: number;
-  statusText: string;
-  body: string;
-  tipoError: 'RATE_LIMIT_429' | 'QUOTA_EXHAUSTED' | 'SERVER_ERROR' | 'CLIENT_ERROR' | 'NETWORK_ERROR' | 'TIMEOUT';
-  mensaje: string;
+export function iaEstaConfigurada(): boolean {
+  return ordenProveedores().length > 0;
 }
 
 const TIPOS_VALIDOS: readonly TipoRespuesta[] = [
@@ -62,25 +52,21 @@ const TIPOS_VALIDOS: readonly TipoRespuesta[] = [
   'otro',
 ];
 
-export function iaEstaConfigurada(): boolean {
-  return Boolean(env.GEMINI_API_KEY);
-}
-
 function esTipoValido(valor: unknown): valor is TipoRespuesta {
   return (
     typeof valor === 'string' && (TIPOS_VALIDOS as readonly string[]).includes(valor)
   );
 }
 
-// Concurrency gate: asegura que las llamadas a Gemini se ejecuten secuencialmente sin saturar la cuota
-let llamadaGeminiEnCurso: Promise<unknown> = Promise.resolve();
+// Concurrency gate: asegura que las llamadas a la IA se ejecuten secuencialmente sin saturar la cuota
+let llamadaIAEnCurso: Promise<unknown> = Promise.resolve();
 
 async function ejecutarConConcurrenciaControlada<T>(
   operacion: () => Promise<T>,
 ): Promise<T> {
-  const anterior = llamadaGeminiEnCurso;
+  const anterior = llamadaIAEnCurso;
   let resolverSiguiente: () => void = () => {};
-  llamadaGeminiEnCurso = new Promise<void>((r) => {
+  llamadaIAEnCurso = new Promise<void>((r) => {
     resolverSiguiente = r;
   });
 
@@ -186,103 +172,14 @@ Correos:
 ${bloques}`;
 }
 
-async function ejecutarFetchGemini(prompt: string): Promise<unknown> {
-  if (!env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY no configurada');
-  }
-
-  let ultimoError: unknown;
-
-  for (let intento = 0; intento <= RETRIES; intento += 1) {
-    if (intento > 0) {
-      const baseEspera = ESPERAS_RETRY_MS[intento - 1] ?? 10_000;
-      // Agregar jitter aleatorio de 200 a 1000ms
-      const espera = baseEspera + Math.floor(Math.random() * 800);
-      console.warn(
-        `[IA][Gemini] Reintento ${intento}/${RETRIES} tras espera de ${espera}ms...`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, espera));
+async function llamarIA(prompt: string): Promise<unknown> {
+  return ejecutarConConcurrenciaControlada(async () => {
+    const resultado = await llamarIAConFallback(prompt);
+    if (!resultado) {
+      throw new Error('Ningún proveedor de IA respondió');
     }
-
-    const control = new AbortController();
-    const temporizador = setTimeout(() => control.abort(), TIMEOUT_MS);
-
-    try {
-      const respuesta = await fetch(`${URL_GEMINI}?key=${env.GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0,
-          },
-        }),
-        signal: control.signal,
-      });
-
-      if (!respuesta.ok) {
-        const bodyError = await respuesta.text().catch(() => '');
-        const es429 = respuesta.status === 429;
-        const tipo = es429 ? 'RATE_LIMIT_429' : 'SERVER_ERROR';
-
-        console.error(
-          `[IA][Gemini Error ${respuesta.status}] ${respuesta.statusText} (${tipo}):\n${bodyError}`,
-        );
-
-        const errorConDetalle = new Error(
-          `Gemini respondió ${respuesta.status} (${respuesta.statusText}): ${bodyError.slice(0, 300)}`,
-        );
-        (errorConDetalle as unknown as { status: number }).status = respuesta.status;
-        (errorConDetalle as unknown as { statusText: string }).statusText = respuesta.statusText;
-        (errorConDetalle as unknown as { body: string }).body = bodyError;
-
-        throw errorConDetalle;
-      }
-
-      const cuerpo = (await respuesta.json()) as {
-        candidates?: { content?: { parts?: { text?: string }[] } }[];
-      };
-      const texto = cuerpo.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (typeof texto !== 'string' || texto.trim() === '') {
-        throw new Error('Gemini devolvió una respuesta vacía');
-      }
-
-      const limpio = texto
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim();
-      return JSON.parse(limpio);
-    } catch (error) {
-      ultimoError = error;
-      if (!esErrorTransitorio(error)) {
-        throw error;
-      }
-    } finally {
-      clearTimeout(temporizador);
-    }
-  }
-
-  throw ultimoError;
-}
-
-async function llamarGemini(prompt: string): Promise<unknown> {
-  return ejecutarConConcurrenciaControlada(() => ejecutarFetchGemini(prompt));
-}
-
-function esErrorTransitorio(error: unknown): boolean {
-  if (error instanceof Error && error.name === 'AbortError') {
-    return true;
-  }
-  if (error instanceof TypeError) {
-    return true;
-  }
-  const status = (error as unknown as { status?: number })?.status;
-  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
-    return true;
-  }
-  const mensaje = error instanceof Error ? error.message : String(error);
-  return /Gemini respondió (429|500|502|503|504)/.test(mensaje);
+    return resultado.datos;
+  });
 }
 
 export async function clasificarLote(
@@ -291,9 +188,9 @@ export async function clasificarLote(
   if (emails.length === 0) return [];
 
   try {
-    const datos = await llamarGemini(construirPrompt(emails));
+    const datos = await llamarIA(construirPrompt(emails));
     if (!Array.isArray(datos)) {
-      throw new Error('Gemini devolvió un formato inválido');
+      throw new Error('La IA devolvió un formato inválido');
     }
 
     const porIndice = new Map<number, ClasificacionIA>();
@@ -330,9 +227,9 @@ export async function detectarPostulacionesLote(
   if (emails.length === 0) return [];
 
   try {
-    const datos = await llamarGemini(construirPromptPostulacion(emails));
+    const datos = await llamarIA(construirPromptPostulacion(emails));
     if (!Array.isArray(datos)) {
-      throw new Error('Gemini devolvió un formato inválido');
+      throw new Error('La IA devolvió un formato inválido');
     }
 
     const porIndice = new Map<number, DeteccionPostulacionIA>();

@@ -452,12 +452,6 @@ function extraerAdjuntosEImagenes(payload?: RespuestaGmail['payload']): {
       ? contentIdRaw.replace(/^<|>$/g, '').trim()
       : undefined;
 
-    const filename = headers.find(
-      (h) =>
-        h.name?.toLowerCase() === 'content-disposition' ||
-        h.name?.toLowerCase() === 'content-type',
-    )?.value;
-
     const nombre =
       (parte as { filename?: string }).filename ||
       contentId ||

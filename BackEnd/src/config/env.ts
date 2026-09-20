@@ -38,6 +38,29 @@ const envSchema = z.object({
   JWT_SECRET: z.string().default(''),
 
   GEMINI_API_KEY: z.string().default(''),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+
+  // Cadena de proveedores de IA con fallback, en orden de prioridad,
+  // separados por coma. Valores válidos: gemini, groq, openrouter,
+  // openai, anthropic.
+  IA_PROVEEDORES: z.string().default('gemini,groq,openrouter,openai,anthropic'),
+
+  OPENAI_API_KEY: z.string().default(''),
+  OPENAI_MODEL: z.string().default('gpt-4o-mini'),
+  OPENAI_BASE_URL: z.string().default('https://api.openai.com/v1'),
+
+  // Groq (secundaria gratuita, API compatible con OpenAI).
+  GROQ_API_KEY: z.string().default(''),
+  GROQ_MODEL: z.string().default('openai/gpt-oss-20b'),
+  GROQ_BASE_URL: z.string().default('https://api.groq.com/openai/v1'),
+
+  // OpenRouter (modelos :free, API compatible con OpenAI).
+  OPENROUTER_API_KEY: z.string().default(''),
+  OPENROUTER_MODEL: z.string().default('openrouter/free'),
+  OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
+
+  ANTHROPIC_API_KEY: z.string().default(''),
+  ANTHROPIC_MODEL: z.string().default('claude-3-5-haiku-latest'),
 });
 
 // La pantalla beta (HTML del backend) solo aplica cuando no hay un SPA

@@ -416,6 +416,133 @@ describe('POST /api/gmail/analizar', () => {
     });
   });
 
+  it('no crea postulación para una alerta aunque la IA diga es_postulacion', async () => {
+    detectarPostulacionesLoteMock.mockImplementation(
+      async (emails: { id: string }[]): Promise<(DeteccionPostulacionIA | null)[]> =>
+        emails.map(() => ({
+          es_postulacion: true,
+          puesto: 'Backend Developer',
+          es_alerta_empleo: true,
+          confianza: 80,
+          motivo: 'prueba',
+        })),
+    );
+    const antes = await request(app).get(
+      `/api/postulaciones?usuario_id=${usuarioId}`,
+    );
+    const totalAntes = (antes.body.data as unknown[]).length;
+    const emailId = await insertarEmailSinPostulacion({
+      contenido: 'Tenemos 5 empleos que te pueden interesar esta semana.',
+      asunto: 'Trabajo Copado: 5 empleos para vos',
+      remitente: 'alertas@computrabajo.com',
+      gmailMessageId: 'sin-ia-alerta-1',
+    });
+
+    const res = await analizar();
+    expect(res.body.data.postulaciones_creadas).toBe(0);
+
+    const despues = await request(app).get(
+      `/api/postulaciones?usuario_id=${usuarioId}`,
+    );
+    expect((despues.body.data as unknown[]).length).toBe(totalAntes);
+
+    const emailRow = await db.execute({
+      sql: 'SELECT postulacion_id, tipo_respuesta, tipo_respuesta_fuente FROM emails WHERE id = ?',
+      args: [emailId],
+    });
+    expect(emailRow.rows[0]!.postulacion_id).toBeNull();
+    expect(emailRow.rows[0]!.tipo_respuesta).toBe('otro');
+    expect(emailRow.rows[0]!.tipo_respuesta_fuente).toBe('ia');
+  });
+
+  it('ignora una job alert de LinkedIn aunque la IA diga que es postulación', async () => {
+    detectarPostulacionIA(true, 'Backend Developer');
+    const emailId = await insertarEmailSinPostulacion({
+      contenido: 'Hay 12 nuevos empleos para vos esta semana.',
+      asunto: 'Nuevas ofertas que te pueden interesar',
+      remitente: 'jobalerts-noreply@linkedin.com',
+      gmailMessageId: 'sin-ia-linkedin-1',
+    });
+
+    const res = await analizar();
+    expect(res.body.data.postulaciones_creadas).toBe(0);
+
+    const emailRow = await db.execute({
+      sql: 'SELECT postulacion_id, tipo_respuesta FROM emails WHERE id = ?',
+      args: [emailId],
+    });
+    expect(emailRow.rows[0]!.postulacion_id).toBeNull();
+    expect(emailRow.rows[0]!.tipo_respuesta).toBe('otro');
+  });
+
+  it('sí procesa una actualización de candidatura de un portal', async () => {
+    detectarPostulacionIA(true, 'QA Tester');
+    const emailId = await insertarEmailSinPostulacion({
+      contenido: 'La empresa ha visto tu CV. Te avisaremos cualquier novedad.',
+      asunto: 'Tu candidatura ha sido vista',
+      remitente: 'alertas@computrabajo.com',
+      gmailMessageId: 'sin-ia-actualizacion-1',
+    });
+
+    const res = await analizar();
+    expect(res.body.data.postulaciones_creadas).toBe(1);
+
+    const emailRow = await db.execute({
+      sql: 'SELECT postulacion_id, tipo_respuesta FROM emails WHERE id = ?',
+      args: [emailId],
+    });
+    expect(emailRow.rows[0]!.postulacion_id).not.toBeNull();
+    expect(emailRow.rows[0]!.tipo_respuesta).not.toBe('otro');
+  });
+
+  it('vincular un email enviado no marca respondio en la postulación', async () => {
+    const empresaZ = await db.execute({
+      sql: "INSERT INTO empresas (nombre) VALUES ('Empresa Z') RETURNING id",
+      args: [],
+    });
+    const empresaZId = Number(empresaZ.rows[0]!.id);
+    const resCrear = await request(app).post('/api/postulaciones').send({
+      usuario_id: usuarioId,
+      empresa_id: empresaZId,
+      puesto: 'Soporte Técnico',
+    });
+    const postulacionZId = resCrear.body.data.id as number;
+
+    detectarPostulacionesLoteMock.mockImplementation(
+      async (emails: { id: string }[]): Promise<(DeteccionPostulacionIA | null)[]> =>
+        emails.map(() => ({
+          es_postulacion: true,
+          puesto: 'Soporte Técnico',
+          empresa: 'Empresa Z',
+          confianza: 80,
+          motivo: 'prueba',
+        })),
+    );
+    const emailId = await insertarEmailSinPostulacion({
+      contenido: 'Les envío mi CV para la vacante de Soporte Técnico.',
+      asunto: 'Postulación Soporte Técnico',
+      remitente: 'candidato-ia@test.com',
+      enviado: 1,
+      gmailMessageId: 'sin-ia-enviado-1',
+    });
+
+    const res = await analizar();
+    expect(res.body.data.postulaciones_vinculadas).toBe(1);
+
+    const emailRow = await db.execute({
+      sql: 'SELECT postulacion_id, tipo_respuesta FROM emails WHERE id = ?',
+      args: [emailId],
+    });
+    expect(emailRow.rows[0]!.postulacion_id).toBe(postulacionZId);
+    expect(emailRow.rows[0]!.tipo_respuesta).toBe('otro');
+
+    const postulacion = await request(app).get(
+      `/api/postulaciones/${postulacionZId}`,
+    );
+    expect(postulacion.body.data.respondio).toBe(0);
+    expect(postulacion.body.data.estado).toBe('pendiente');
+  });
+
   it('vincula a una postulación existente en vez de duplicarla', async () => {
     const empresaY = await db.execute({
       sql: "INSERT INTO empresas (nombre) VALUES ('empresay') RETURNING id",

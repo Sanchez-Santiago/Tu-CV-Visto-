@@ -7,7 +7,7 @@
   <a href="#-tecnologías"><img src="https://img.shields.io/badge/Stack-Bun%20%7C%20React%2019%20%7C%20Gemini%20AI-22C55E?style=flat-square&labelColor=0D1210" alt="Stack"/></a>
   <a href="#-puesta-en-marcha-local"><img src="https://img.shields.io/badge/Setup-local-22C55E?style=flat-square&labelColor=0D1210" alt="Setup"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-GPL--3.0-22C55E?style=flat-square&labelColor=0D1210" alt="Licencia"/></a>
-  <img src="https://img.shields.io/badge/Tests-192%20pasados-22C55E?style=flat-square&labelColor=0D1210" alt="Tests"/>
+  <img src="https://img.shields.io/badge/Tests-217%20pasados-22C55E?style=flat-square&labelColor=0D1210" alt="Tests"/>
 </p>
 
 ---
@@ -27,7 +27,8 @@
 <td width="50%">
 
 ### 📬 Emails & Gmail
-- **Sincronización automática** con Gmail (últimos 60 días, enviados y recibidos)
+- **Sincronización automática** cada 2 minutos al tener la app abierta (últimos 14 días, enviados y recibidos), en silencio y sin recargar la página
+- Botón **Actualizar** para sincronizar mails manualmente (sin IA) y botón **Analizar IA** separado, solo cuando vos lo pedís
 - **Lector de correos moderno** — HTML renderizado con padding interno, sin que el contenido toque los bordes
 - Detección segura de imágenes (firmas, logos, embebidas, remotas) con toggle de visibilidad y lightbox
 - Sanitización anti-XSS estricta en todos los correos renderizados
@@ -51,8 +52,10 @@
 <tr>
 <td width="50%">
 
-### 🧠 Inteligencia Artificial (Gemini)
-- Análisis de correos con **Gemini 2.5 Flash** — remitente, dominio, asunto, cuerpo, enlaces y adjuntos
+### 🧠 Inteligencia Artificial (multi-proveedor)
+- Análisis de correos con **cadena de proveedores con fallback**: Gemini (gratuito) → Groq (gratuito) → OpenRouter (modelos `:free`) → OpenAI → Anthropic — si uno falla, se prueba automáticamente con el siguiente
+- La IA **nunca corre sola**: solo se ejecuta con el botón **Analizar IA** (la sync de mails es independiente y no se bloquea si la IA falla)
+- Detección de postulaciones y vinculación automática, clasificación de respuestas (rechazo / entrevista / oferta / novedad / contacto)
 - Control de concurrencia y **backoff exponencial con jitter** para manejar límites de cuota (429)
 - Diagnóstico detallado de errores de API
 
@@ -64,6 +67,8 @@
 - Regla de **48 horas hábiles** (excluyendo fines de semana) para mover postulaciones sin respuesta a seguimiento urgente
 - Renovaciones sugeridas con plantillas personalizables
 - Si llega una respuesta, el estado se actualiza y la postulación sale de la cola automáticamente
+- Las alertas de portales y el ruido **no** cuentan como respuesta ni sacan de la cola; cada envío propio abre un ciclo de espera nuevo
+- Si la cola quedó vacía por datos viejos: `bun run reparar:respondio` (en `BackEnd/`, con `--dry-run` para previsualizar) y luego un **Analizar IA** para remarcar respuestas genuinas
 
 </td>
 </tr>
@@ -89,6 +94,77 @@
 
 ---
 
+## 📸 Capturas de la app
+
+<table>
+<tr>
+<td width="50%">
+
+**Dashboard** — saludo, KPIs de postulaciones, curva de actividad y seguimientos del día.
+
+<img src="docs/Dashboart.png" alt="Dashboard de CVisto" width="100%"/>
+
+</td>
+<td width="50%">
+
+**Postulaciones** — tabla con filtros por estado y cambio rápido de estado.
+
+<img src="docs/Postulaciones.png" alt="Vista de postulaciones" width="100%"/>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Emails** — historial de correos vinculados, filtros Recibidos/Enviados y por fecha.
+
+<img src="docs/Emails.png" alt="Vista de emails" width="100%"/>
+
+</td>
+<td width="50%">
+
+**Empresas** — directorio de organizaciones con email directo y procesos vinculados.
+
+<img src="docs/Empresas.png" alt="Vista de empresas" width="100%"/>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Contactos** — red de reclutadores y hiring managers con botón Escribir.
+
+<img src="docs/Contactos.png" alt="Vista de contactos" width="100%"/>
+
+</td>
+<td width="50%">
+
+**Redactar email** — modal de redacción con CC, adjuntos y firma opcional.
+
+<img src="docs/Redactar-Email.png" alt="Modal redactar email" width="100%"/>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Configuración: perfil** — datos profesionales que se usan en las postulaciones.
+
+<img src="docs/Configuraciones.png" alt="Configuración de perfil" width="100%"/>
+
+</td>
+<td width="50%">
+
+**Configuración: categorías y trayectoria** — áreas de especialización, experiencia laboral y proyectos.
+
+<img src="docs/Configuracion%202.png" alt="Configuración de categorías y trayectoria" width="100%"/>
+
+</td>
+</tr>
+</table>
+
+---
+
 ## 🔄 Flujo de trabajo
 
 ```
@@ -100,7 +176,9 @@ Registrar postulación
         ↓
 Enviar postulación  ─────────────── Gmail API (o registro manual)
         ↓
-Esperar respuesta   ←─ sincronización detecta respuestas automáticamente
+Esperar respuesta   ←─ auto-sync de mails cada 2 min (sin IA, sin recargar)
+        ↓
+Analizar con IA     ←─ botón manual: clasifica, vincula y actualiza estados
         ↓
     ¿Respondieron?
    ┌──────┴──────┐
@@ -141,8 +219,8 @@ Esperar respuesta   ←─ sincronización detecta respuestas automáticamente
 | **Turso / SQLite** (`@libsql/client`) | Base de datos |
 | **Google Auth Library** | OAuth 2.0 / Google |
 | **jose** | Firmado y verificación de JWT |
-| **Google Generative AI** | Clasificación de correos con Gemini 2.5 Flash |
-| **Vitest + Supertest** | 192 tests unitarios e integración |
+| **Google Generative AI** | Clasificación con cadena multi-IA (Gemini → Groq → OpenRouter → OpenAI → Anthropic) |
+| **Vitest + Supertest** | 217 tests unitarios e integración |
 | **ESLint / Prettier** | Lint y formato |
 
 ### Frontend (`FrontEnd/cvisto/`)
@@ -161,6 +239,7 @@ Esperar respuesta   ←─ sincronización detecta respuestas automáticamente
 - **Google OAuth 2.0**: autenticación sin contraseñas.
 - **Gmail API**: sincronización bidireccional, envío real (CC + adjuntos multipart), resolución de imágenes `cid:` embebidas.
 - **Gemini AI**: análisis y clasificación de correos con control de concurrencia y resiliencia a errores de cuota.
+- **OpenAI / Anthropic**: proveedores alternativos con fallback automático si el anterior falla.
 
 ---
 
@@ -173,7 +252,7 @@ Esperar respuesta   ←─ sincronización detecta respuestas automáticamente
 │   ├── src/
 │   │   ├── config/           → env (Zod), cliente Turso, credenciales Google
 │   │   ├── controllers/      → entrada y salida HTTP
-│   │   ├── services/         → lógica de negocio (Gmail, IA, sincronización, estrategia…)
+│   │   ├── services/         → lógica de negocio (Gmail, IA multi-proveedor, sincronización, estrategia…)
 │   │   ├── models/           → acceso a datos (queries parametrizadas)
 │   │   ├── routes/           → rutas Express
 │   │   ├── schemas/          → validación Zod por entidad
@@ -182,13 +261,13 @@ Esperar respuesta   ←─ sincronización detecta respuestas automáticamente
 │   │   └── utils/            → horas hábiles, JWT, migraciones, docs
 │   ├── database/             → schema.sql (DDL) y seeds.sql
 │   ├── scripts/              → migrate.ts
-│   └── tests/                → suites Vitest (SQLite local, 192 tests)
+│   └── tests/                → suites Vitest (SQLite local, 217 tests)
 │
 └── FrontEnd/
     └── cvisto/
         ├── src/
         │   ├── components/   → vistas, modales, EmailViewer y librería UI
-        │   ├── hooks/        → useAuth, usePostulaciones, useEmails…
+        │   ├── hooks/        → useAuth, usePostulaciones, useEmails, useAutoSync…
         │   ├── lib/          → cliente API, html.ts (sanitización), helpers
         │   ├── schemas/      → schemas Zod del frontend
         │   └── types/        → tipos de la aplicación
@@ -233,8 +312,21 @@ cp .env.example .env
 #   URL_TURSO, TOKEN_TURSO  → base de datos Turso
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL
 #   JWT_SECRET              → clave larga y aleatoria
-#   GEMINI_API_KEY          → Google AI Studio
+#   GEMINI_API_KEY          → Google AI Studio (nivel gratuito)
 #   GEMINI_MODEL            → (opcional) default: gemini-2.5-flash
+#   IA_PROVEEDORES          → (opcional) orden con fallback,
+#                             default: gemini,groq,openrouter,openai,anthropic
+#   GROQ_API_KEY              → Groq, secundaria gratuita (~1000 req/día).
+#                             Key en https://console.groq.com
+#   GROQ_MODEL                → (opcional) default: openai/gpt-oss-20b
+#   OPENROUTER_API_KEY        → OpenRouter, modelos :free (~50 req/día).
+#                             Key en https://openrouter.ai
+#   OPENROUTER_MODEL          → (opcional) default: openrouter/free (elige un modelo :free vigente)
+#   OPENAI_API_KEY          → OpenAI (o compatible: OpenRouter, Groq, Ollama…)
+#   OPENAI_MODEL            → (opcional) default: gpt-4o-mini
+#   OPENAI_BASE_URL         → (opcional) default: https://api.openai.com/v1
+#   ANTHROPIC_API_KEY       → Anthropic
+#   ANTHROPIC_MODEL         → (opcional) default: claude-3-5-haiku-latest
 
 # 2. Instalar dependencias y aplicar migraciones
 bun install
@@ -262,7 +354,8 @@ bun run dev   # o: npm run dev
 | Comando | Directorio | Descripción |
 |---|---|---|
 | `bun run migrate` | `BackEnd/` | Aplica schema y seeds |
-| `bun run test` | `BackEnd/` | 192 pruebas (Vitest) |
+| `bun run reparar:respondio` | `BackEnd/` | Resetea `respondio` en postulaciones no cerradas (ver nota abajo; admite `--dry-run`) |
+| `bun run test` | `BackEnd/` | 217 pruebas (Vitest) |
 | `bun run typecheck` | `BackEnd/` | Chequeo de tipos |
 | `bun run lint` | `BackEnd/` | ESLint |
 | `bun run dev` | `FrontEnd/cvisto/` | Dev server (Vite) |
@@ -272,7 +365,7 @@ bun run dev   # o: npm run dev
 
 ## 🧪 Tests
 
-El backend cuenta con **192 tests** cubriendo:
+El backend cuenta con **217 tests** cubriendo:
 
 - Autenticación (OAuth, JWT)
 - CRUD de empresas, contactos, postulaciones, emails, seguimientos
@@ -286,8 +379,8 @@ Los tests corren contra una base **SQLite local** para no afectar la base remota
 ```bash
 # En BackEnd/
 bun run test
-# → Test Files  21 passed (21)
-# →      Tests  192 passed (192)
+# → Test Files  22 passed (22)
+# →      Tests  217 passed (217)
 ```
 
 ---

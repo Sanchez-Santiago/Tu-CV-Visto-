@@ -168,6 +168,7 @@ export const PostulacionModel = {
         SET cantidad_mails_enviados = cantidad_mails_enviados + 1,
             ultimo_contacto = COALESCE(?, ultimo_contacto),
             proxima_contacto = COALESCE(?, proxima_contacto),
+            respondio = 0,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `,

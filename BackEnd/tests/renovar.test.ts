@@ -216,6 +216,28 @@ describe('POST /api/estrategia/renovar', () => {
     );
   });
 
+  it('renovar reinicia respondio para un nuevo ciclo de espera', async () => {
+    const empresa = await crearEmpresa('Renovar Ciclo');
+    const postulacionId = await crearPostulacion(empresa);
+    await registrarEmailSaliente(postulacionId);
+    await db.execute({
+      sql: 'UPDATE postulaciones SET respondio = 1 WHERE id = ?',
+      args: [postulacionId],
+    });
+
+    const res = await request(app)
+      .post('/api/estrategia/renovar')
+      .set(auth())
+      .send({ items: [{ postulacion_id: postulacionId }] });
+
+    expect(res.status).toBe(200);
+
+    const postulacion = await request(app).get(
+      `/api/postulaciones/${postulacionId}`,
+    );
+    expect(postulacion.body.data.respondio).toBe(0);
+  });
+
   it('devuelve 400 si no hay destinatario para la postulación', async () => {
     const empresa = await crearEmpresa('Renovar Sin Destino');
     const postulacionId = await crearPostulacion(empresa, {

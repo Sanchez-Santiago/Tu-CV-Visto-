@@ -12,10 +12,15 @@ import {
   iaEstaConfigurada,
   TAMANIO_LOTE,
 } from './ia.service';
+import {
+  obtenerUltimoProveedorIA,
+  type IdProveedorIA,
+} from './ia-proveedores';
 import { AgendaService } from './agenda.service';
 import {
   clasificarRespuesta,
   dominioSinTld,
+  esAlertaDeEmpleo,
 } from './analisis.service';
 
 const LIMITE_MAXIMO = 100;
@@ -44,6 +49,7 @@ export interface ResumenAnalisisIA {
   postulaciones_creadas: number;
   postulaciones_vinculadas: number;
   detalle: AnalisisDetalleIA[];
+  proveedor: IdProveedorIA | null;
 }
 
 const TRANSICIONES: Partial<Record<TipoRespuesta, EstadoPostulacion>> = {
@@ -141,6 +147,7 @@ export const AnalisisIAService = {
       postulaciones_creadas: 0,
       postulaciones_vinculadas: 0,
       detalle: [],
+      proveedor: null,
     };
 
     const usarIA = iaEstaConfigurada();
@@ -148,6 +155,7 @@ export const AnalisisIAService = {
     await this.procesarCandidatas(usuarioId, candidatas, postulaciones, empresasList, resultado, usarIA);
 
     if (pendientes.length === 0) {
+      resultado.proveedor = obtenerUltimoProveedorIA();
       return resultado;
     }
 
@@ -246,6 +254,7 @@ export const AnalisisIAService = {
       }
     }
 
+    resultado.proveedor = obtenerUltimoProveedorIA();
     return resultado;
   },
 
@@ -309,6 +318,25 @@ export const AnalisisIAService = {
         indiceIA += 1;
 
         const fuente: 'ia' | 'keywords' = usarIA ? 'ia' : 'keywords';
+
+        // Veto determinístico: las alertas de portales de empleo nunca son
+        // postulaciones, aunque la IA diga lo contrario. Las actualizaciones
+        // de candidatura (esAlertaDeEmpleo las excluye) siguen su curso normal.
+        const esAlerta =
+          email.enviado === 0 &&
+          (deteccionIA?.es_alerta_empleo === true ||
+            esAlertaDeEmpleo(
+              email.remitente,
+              email.asunto,
+              email.contenido_resumen,
+            ));
+        if (esAlerta) {
+          await EmailModel.actualizar(email.id, {
+            tipo_respuesta: 'otro',
+            tipo_respuesta_fuente: fuente,
+          });
+          continue;
+        }
 
         if (usarIA) {
           if (!deteccionIA) {
@@ -396,7 +424,7 @@ export const AnalisisIAService = {
             tipo_respuesta_fuente: fuente,
           });
 
-          let nuevoEstado: string | null = null;
+          let nuevoEstado: EstadoPostulacion | null = null;
           const estadoAnterior = existente.estado;
 
           if (email.enviado === 0) {
@@ -406,15 +434,21 @@ export const AnalisisIAService = {
                 ? objetivo
                 : tipoDetalle === 'novedad' && estadoAnterior === 'pendiente'
                   ? 'en_proceso'
-                  : estadoAnterior;
+                  : (estadoAnterior as EstadoPostulacion);
 
             await PostulacionModel.actualizar(existente.id, {
-              respondio: 1,
+              // El ruido ('otro') no cuenta como respuesta: no saca la
+              // postulación de la cola de seguimiento.
+              ...(tipoDetalle !== 'otro' ? { respondio: 1 } : {}),
               ultimo_contacto: email.fecha?.slice(0, 10) ?? null,
-              estado: nuevoEstado,
+              ...(nuevoEstado ? { estado: nuevoEstado } : {}),
             });
-            existente.estado = nuevoEstado;
-            existente.respondio = 1;
+            if (nuevoEstado) {
+              existente.estado = nuevoEstado;
+            }
+            if (tipoDetalle !== 'otro') {
+              existente.respondio = 1;
+            }
             if (nuevoEstado !== estadoAnterior) {
               resultado.estados_actualizados += 1;
             }

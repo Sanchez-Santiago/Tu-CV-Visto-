@@ -3,6 +3,7 @@ import { EmailModel } from '../models/email.model';
 import { PostulacionModel } from '../models/postulacion.model';
 import { UsuarioModel } from '../models/usuario.model';
 import type { EmailRow } from '../types/models';
+import type { EstadoPostulacion } from '../types/common';
 import { AgendaService } from './agenda.service';
 import { EmailService } from './email.service';
 import { GmailService } from './gmail.service';
@@ -12,8 +13,6 @@ import {
   matchearPostulacion,
   type TipoRespuesta,
 } from './analisis.service';
-import { AnalisisIAService, type ResumenAnalisisIA } from './analisis-ia.service';
-import { iaEstaConfigurada } from './ia.service';
 
 const MAX_RESULTADOS = 100;
 const MAX_PAGINAS = 10;
@@ -40,7 +39,6 @@ export interface ResumenSincronizacion {
   estados_actualizados: number;
   resumen: Record<TipoRespuesta, number>;
   detalle: SincronizacionDetalle[];
-  analisis_ia?: ResumenAnalisisIA;
 }
 
 const resumenVacio: Record<TipoRespuesta, number> = {
@@ -217,7 +215,7 @@ export const SincronizacionService = {
       let estadoNuevo: string | null = null;
 
       if (!mensaje.esEnviado && postulacionId !== null) {
-        const transiciones: Record<string, string> = {
+        const transiciones: Record<string, EstadoPostulacion> = {
           entrevista: 'entrevista',
           rechazo: 'rechazado',
           oferta: 'oferta',
@@ -247,7 +245,9 @@ export const SincronizacionService = {
           estadoNuevo = 'en_proceso';
           estadoPorPostulacion.set(postulacionId, 'en_proceso');
           resultado.estados_actualizados += 1;
-        } else {
+        } else if (tipoRespuesta !== 'otro') {
+          // El ruido ('otro': alertas, newsletters) no toca la postulación:
+          // no cuenta como respuesta ni como contacto.
           await PostulacionModel.actualizar(postulacionId, {
             respondio: 1,
             ultimo_contacto: email.fecha.slice(0, 10),
@@ -267,19 +267,6 @@ export const SincronizacionService = {
       });
 
       await esperar(ESPERA_ENTRE_MENSAJES_MS);
-    }
-
-    if (iaEstaConfigurada()) {
-      try {
-        const analisis = await AnalisisIAService.analizarEmailsPendientes(
-          usuarioId,
-        );
-        if (analisis.analizados > 0 || analisis.estados_actualizados > 0) {
-          resultado.analisis_ia = analisis;
-        }
-      } catch (error) {
-        console.error('[Sincronizacion] No se pudo analizar con IA:', error);
-      }
     }
 
     return resultado;

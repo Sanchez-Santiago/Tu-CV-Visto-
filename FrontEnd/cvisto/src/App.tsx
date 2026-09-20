@@ -14,6 +14,7 @@ import { useSeguimientos } from "@/src/hooks/useSeguimientos";
 import { useEmails } from "@/src/hooks/useEmails";
 import { useFirmas } from "@/src/hooks/useFirmas";
 import { useEstrategia } from "@/src/hooks/useEstrategia";
+import { useAutoSync } from "@/src/hooks/useAutoSync";
 
 // Action hooks
 import { useApplicationModals } from "@/src/hooks/useApplicationModals";
@@ -105,6 +106,13 @@ function AppContent() {
     refrescarPostulaciones: postulaciones.refrescar,
     refrescarEmails: emails.refrescar,
     refrescarSeguimientos: seguimientos.refrescar,
+    refrescarEmpresas: empresas.refrescar,
+    refrescarContactos: contactos.refrescar,
+    refrescarFirmas: firmas.refrescar,
+  });
+  const autoSync = useAutoSync({
+    habilitado: !auth.cargando && !auth.necesitaLogin,
+    sincronizar: estrategiaActions.sincronizar,
   });
 
   // Guard: handle OAuth callback landing — read token from URL fragment
@@ -196,6 +204,10 @@ function AppContent() {
           onQuickNavigateFollowups={() => setCurrentView("seguimientos")}
           onActualizar={estrategiaActions.actualizarGlobal}
           actualizando={estrategiaActions.actualizando}
+          onAnalizarIA={estrategiaActions.analizar}
+          analizandoIA={estrategiaActions.analizandoIA}
+          ultimaSincronizacion={autoSync.ultimaSincronizacion}
+          sincronizandoAuto={autoSync.sincronizandoAuto}
         />
 
         {/* Scrollable Body */}

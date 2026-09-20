@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clasificarRespuesta,
+  esAlertaDeEmpleo,
   extraerEmailDireccion,
   matchearPostulacion,
 } from '../src/services/analisis.service';
@@ -284,5 +285,47 @@ describe('matchearPostulacion', () => {
         emailsEnviados: [],
       }),
     ).toBe(1);
+  });
+});
+
+describe('esAlertaDeEmpleo', () => {
+  it('detecta alertas de Computrabajo por remitente y asunto', () => {
+    expect(
+      esAlertaDeEmpleo(
+        'alertas@computrabajo.com',
+        'Trabajo Copado: 5 empleos para vos',
+        'Nuevas ofertas que te pueden interesar.',
+      ),
+    ).toBe(true);
+  });
+
+  it('detecta job alerts de LinkedIn', () => {
+    expect(
+      esAlertaDeEmpleo(
+        'jobalerts-noreply@linkedin.com',
+        'Nuevas ofertas que te pueden interesar',
+        'Hay 12 nuevos empleos para vos.',
+      ),
+    ).toBe(true);
+  });
+
+  it('no marca como alerta una actualización de candidatura', () => {
+    expect(
+      esAlertaDeEmpleo(
+        'alertas@computrabajo.com',
+        'Tu candidatura ha sido vista',
+        'La empresa ha visto tu CV.',
+      ),
+    ).toBe(false);
+  });
+
+  it('no marca como alerta un correo normal de empresa', () => {
+    expect(
+      esAlertaDeEmpleo(
+        'rrhh@empresa.com',
+        'Entrevista la semana próxima',
+        'Te invitamos a una entrevista.',
+      ),
+    ).toBe(false);
   });
 });

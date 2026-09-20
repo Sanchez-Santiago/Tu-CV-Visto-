@@ -179,7 +179,14 @@ export const EmailService = {
     });
 
     if (input.postulacionId !== null) {
-      await PostulacionModel.actualizar(input.postulacionId, { respondio: 1 });
+      // Solo cuenta como "respondieron" si la respuesta es real:
+      // las alertas de portales y el ruido ('otro') no sacan la
+      // postulación de la cola de seguimiento.
+      if (input.tipoRespuesta && input.tipoRespuesta !== 'otro') {
+        await PostulacionModel.actualizar(input.postulacionId, {
+          respondio: 1,
+        });
+      }
     }
 
     return email;

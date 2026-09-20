@@ -24,6 +24,10 @@ interface HeaderProps {
   onQuickNavigateFollowups: () => void;
   onActualizar?: () => void;
   actualizando?: boolean;
+  onAnalizarIA?: () => void;
+  analizandoIA?: boolean;
+  ultimaSincronizacion?: Date | null;
+  sincronizandoAuto?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -37,8 +41,19 @@ export const Header: React.FC<HeaderProps> = ({
   onQuickNavigateFollowups,
   onActualizar,
   actualizando = false,
+  onAnalizarIA,
+  analizandoIA = false,
+  ultimaSincronizacion = null,
+  sincronizandoAuto = false,
 }) => {
   const { resolvedTheme, toggleTheme } = useTheme();
+
+  const horaSync = ultimaSincronizacion
+    ? ultimaSincronizacion.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
 
   return (
     <header className="sticky top-0 z-20 bg-[#080A09]/90 backdrop-blur-md border-b border-white/[0.06] px-4 lg:px-8 py-3.5 flex items-center justify-between gap-4 select-none">
@@ -108,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* Global Actualizar button */}
+        {/* Global Actualizar button (solo mails, sin IA) */}
         {onActualizar && (
           <Button
             variant="secondary"
@@ -117,12 +132,39 @@ export const Header: React.FC<HeaderProps> = ({
             isLoading={actualizando}
             disabled={!onActualizar}
             leftIcon={<RefreshCw className="w-4 h-4" />}
-            title="Sincronizar Gmail y actualizar datos"
+            title="Sincronizar mails de Gmail (sin IA)"
             className="whitespace-nowrap"
           >
             <span className="hidden xs:inline">{actualizando ? "Actualizando..." : "Actualizar"}</span>
             <span className="xs:hidden">Act</span>
           </Button>
+        )}
+
+        {/* Analizar con IA (manual, separado de la sync de mails) */}
+        {onAnalizarIA && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onAnalizarIA}
+            isLoading={analizandoIA}
+            disabled={!onAnalizarIA}
+            leftIcon={<Sparkles className="w-4 h-4" />}
+            title="Analizar correos pendientes con IA"
+            className="whitespace-nowrap"
+          >
+            <span className="hidden xs:inline">{analizandoIA ? "Analizando..." : "Analizar IA"}</span>
+            <span className="xs:hidden">IA</span>
+          </Button>
+        )}
+
+        {/* Indicador sutil de última sincronización automática */}
+        {(horaSync || sincronizandoAuto) && (
+          <span
+            className="hidden lg:inline text-[11px] text-[#69736D] whitespace-nowrap"
+            title="Última sincronización automática de mails (cada 2 min)"
+          >
+            {sincronizandoAuto ? "Sinc…" : `Sinc ${horaSync}`}
+          </span>
         )}
 
         {/* Primary Action Button */}

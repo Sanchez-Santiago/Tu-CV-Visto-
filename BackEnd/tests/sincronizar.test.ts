@@ -446,6 +446,102 @@ describe('GET /api/gmail/sincronizar', () => {
     expect(enviado.tipo).toBe('postulacion');
   });
 
+  it('una alerta vinculada no marca respondio en la postulación', async () => {
+    const empresaRes = await db.execute({
+      sql: 'INSERT INTO empresas (nombre) VALUES (?) RETURNING id',
+      args: ['Empresa Alerta'],
+    });
+    const empresaAlertaId = Number(empresaRes.rows[0]!.id);
+    const postRes = await request(app).post('/api/postulaciones').send({
+      usuario_id: usuarioId,
+      empresa_id: empresaAlertaId,
+      puesto: 'Frontend Developer',
+    });
+    const postulacionAlertaId = postRes.body.data.id as number;
+
+    const mockAlerta = vi.fn(async (url: string | URL) => {
+      const ruta = String(url);
+      if (ruta.includes('/messages?')) {
+        const q = new URL(ruta).searchParams.get('q') ?? '';
+        if (q.includes('in:sent')) {
+          return new Response(JSON.stringify({ messages: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            messages: [
+              {
+                id: 'gmail-alert-40',
+                threadId: 'thread-40',
+                snippet: 'Alerta',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (ruta.includes('/messages/gmail-alert-40')) {
+        return new Response(
+          JSON.stringify({
+            id: 'gmail-alert-40',
+            threadId: 'thread-40',
+            snippet: 'Trabajo Copado',
+            internalDate: String(Date.now()),
+            payload: {
+              headers: [
+                {
+                  name: 'From',
+                  value: 'Trabajo Copado <alertas@empresaalerta.com>',
+                },
+                { name: 'To', value: 'candidato@test.com' },
+                {
+                  name: 'Subject',
+                  value: 'Trabajo Copado: Frontend Developer',
+                },
+              ],
+              body: {
+                data: base64url('Nuevas ofertas que te pueden interesar.'),
+              },
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ error: 'not found' }), {
+        status: 404,
+      });
+    });
+    vi.stubGlobal('fetch', mockAlerta);
+    try {
+      const res = await request(app)
+        .get('/api/gmail/sincronizar')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.importados).toBe(1);
+    } finally {
+      vi.stubGlobal('fetch', fetchMock);
+    }
+
+    const emails = await request(app).get('/api/emails');
+    const alerta = emails.body.data.find(
+      (e: { gmail_message_id: string }) =>
+        e.gmail_message_id === 'gmail-alert-40',
+    );
+    expect(alerta).toBeDefined();
+    expect(alerta.postulacion_id).toBe(postulacionAlertaId);
+    // El sync solo persiste tipo_respuesta para rechazo/entrevista;
+    // lo importante es que no marcó respondio.
+    expect(alerta.tipo_respuesta).toBeNull();
+
+    const postulacion = await request(app).get(
+      `/api/postulaciones/${postulacionAlertaId}`,
+    );
+    expect(postulacion.body.data.respondio).toBe(0);
+    expect(postulacion.body.data.estado).toBe('pendiente');
+  });
+
   it('usa la ventana de días solicitada (60 días) en las consultas a Gmail', async () => {
     fetchMock.mockClear();
     await request(app)

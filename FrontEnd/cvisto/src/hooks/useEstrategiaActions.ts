@@ -22,27 +22,41 @@ export function useEstrategiaActions(opts: {
   refrescarPostulaciones: () => Promise<void>;
   refrescarEmails: () => Promise<void>;
   refrescarSeguimientos: () => Promise<void>;
+  refrescarEmpresas: () => Promise<void>;
+  refrescarContactos: () => Promise<void>;
+  refrescarFirmas: () => Promise<void>;
 }) {
   const { success, error } = useToast();
   const [actualizando, setActualizando] = useState(false);
   const [analizandoIA, setAnalizandoIA] = useState(false);
 
-  const sincronizar = useCallback(
-    async (dias: number) => {
-      const resumen = await opts.sincronizar(dias);
-      await Promise.all([
+  const refrescarListas = useCallback(
+    () =>
+      Promise.all([
         opts.refrescarPostulaciones(),
         opts.refrescarEmails(),
         opts.refrescarSeguimientos(),
-      ]);
-      return resumen;
-    },
+        opts.refrescarEmpresas(),
+        opts.refrescarContactos(),
+        opts.refrescarFirmas(),
+      ]),
     [
-      opts.sincronizar,
       opts.refrescarPostulaciones,
       opts.refrescarEmails,
       opts.refrescarSeguimientos,
+      opts.refrescarEmpresas,
+      opts.refrescarContactos,
+      opts.refrescarFirmas,
     ],
+  );
+
+  const sincronizar = useCallback(
+    async (dias: number) => {
+      const resumen = await opts.sincronizar(dias);
+      await refrescarListas();
+      return resumen;
+    },
+    [opts.sincronizar, refrescarListas],
   );
 
   const renovar = useCallback(
@@ -53,27 +67,20 @@ export function useEstrategiaActions(opts: {
         cuerpo?: string;
         firmas?: number[];
       }[],
-      firmas?: number[],
-    ) => {
-      return opts.renovar(items, firmas);
-    },
-    [opts.renovar],
-  );
+    firmas?: number[],
+  ) => {
+    const resultado = await opts.renovar(items, firmas);
+    await refrescarListas();
+    return resultado;
+  },
+  [opts.renovar, refrescarListas],
+);
 
   const analizar = useCallback(async () => {
     const resumen = await opts.analizar();
-    await Promise.all([
-      opts.refrescarPostulaciones(),
-      opts.refrescarEmails(),
-      opts.refrescarSeguimientos(),
-    ]);
+    await refrescarListas();
     return resumen;
-  }, [
-    opts.analizar,
-    opts.refrescarPostulaciones,
-    opts.refrescarEmails,
-    opts.refrescarSeguimientos,
-  ]);
+  }, [opts.analizar, refrescarListas]);
 
   const analizarIA = useCallback(async () => {
     setAnalizandoIA(true);
@@ -88,12 +95,13 @@ export function useEstrategiaActions(opts: {
       }
       const sufijoCreadas =
         partesCreadas.length > 0 ? `, ${partesCreadas.join(", ")}` : "";
+      const sufijoProveedor = resumen.proveedor ? ` · vía ${resumen.proveedor}` : "";
       success(
         resumen.estados_actualizados > 0
-          ? `IA: ${resumen.rechazos} rechazo(s), ${resumen.entrevistas} entrevista(s) y ${resumen.estados_actualizados} estado(s) actualizado(s)${sufijoCreadas}`
+          ? `IA: ${resumen.rechazos} rechazo(s), ${resumen.entrevistas} entrevista(s) y ${resumen.estados_actualizados} estado(s) actualizado(s)${sufijoCreadas}${sufijoProveedor}`
           : resumen.analizados > 0
-            ? `IA: ${resumen.analizados} email(s) clasificado(s), sin cambios de estado${sufijoCreadas || ", sin postulaciones detectadas"}`
-            : `IA: sin correos pendientes${sufijoCreadas || ""}`,
+            ? `IA: ${resumen.analizados} email(s) clasificado(s), sin cambios de estado${sufijoCreadas || ", sin postulaciones detectadas"}${sufijoProveedor}`
+            : `IA: sin correos pendientes${sufijoCreadas || ""}${sufijoProveedor}`,
       );
       return resumen;
     } catch (e) {
@@ -108,7 +116,7 @@ export function useEstrategiaActions(opts: {
     if (actualizando) return;
     setActualizando(true);
     try {
-      const r = await sincronizar(60);
+      const r = await sincronizar(14);
       success(
         r.importados > 0 || r.estados_actualizados > 0
           ? `Actualizado: ${r.importados} mails nuevos, ${r.estados_actualizados} estado(s) actualizado(s)`

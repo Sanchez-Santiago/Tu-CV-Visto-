@@ -26,7 +26,6 @@ export interface ResumenSincronizacion {
   estados_actualizados: number;
   resumen: Record<TipoRespuestaDetectada, number>;
   detalle: SincronizacionDetalle[];
-  analisis_ia?: ResumenAnalisisIA;
 }
 
 export interface AnalisisDetalleIA {
@@ -52,6 +51,7 @@ export interface ResumenAnalisisIA {
   postulaciones_creadas: number;
   postulaciones_vinculadas: number;
   detalle: AnalisisDetalleIA[];
+  proveedor: string | null;
 }
 
 export interface RenovacionCandidata {
