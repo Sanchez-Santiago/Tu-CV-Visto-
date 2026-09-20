@@ -7,7 +7,7 @@
   <a href="#-tecnologías"><img src="https://img.shields.io/badge/Stack-Bun%20%7C%20React%2019%20%7C%20Gemini%20AI-22C55E?style=flat-square&labelColor=0D1210" alt="Stack"/></a>
   <a href="#-puesta-en-marcha-local"><img src="https://img.shields.io/badge/Setup-local-22C55E?style=flat-square&labelColor=0D1210" alt="Setup"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-GPL--3.0-22C55E?style=flat-square&labelColor=0D1210" alt="Licencia"/></a>
-  <img src="https://img.shields.io/badge/Tests-217%20pasados-22C55E?style=flat-square&labelColor=0D1210" alt="Tests"/>
+  <img src="https://img.shields.io/badge/Tests-222%20pasados-22C55E?style=flat-square&labelColor=0D1210" alt="Tests"/>
 </p>
 
 ---
@@ -220,7 +220,7 @@ Analizar con IA     ←─ botón manual: clasifica, vincula y actualiza estados
 | **Google Auth Library** | OAuth 2.0 / Google |
 | **jose** | Firmado y verificación de JWT |
 | **Google Generative AI** | Clasificación con cadena multi-IA (Gemini → Groq → OpenRouter → OpenAI → Anthropic) |
-| **Vitest + Supertest** | 217 tests unitarios e integración |
+| **Vitest + Supertest** | 222 tests unitarios e integración |
 | **ESLint / Prettier** | Lint y formato |
 
 ### Frontend (`FrontEnd/cvisto/`)
@@ -261,7 +261,7 @@ Analizar con IA     ←─ botón manual: clasifica, vincula y actualiza estados
 │   │   └── utils/            → horas hábiles, JWT, migraciones, docs
 │   ├── database/             → schema.sql (DDL) y seeds.sql
 │   ├── scripts/              → migrate.ts
-│   └── tests/                → suites Vitest (SQLite local, 217 tests)
+│   └── tests/                → suites Vitest (SQLite local, 222 tests)
 │
 └── FrontEnd/
     └── cvisto/
@@ -355,7 +355,7 @@ bun run dev   # o: npm run dev
 |---|---|---|
 | `bun run migrate` | `BackEnd/` | Aplica schema y seeds |
 | `bun run reparar:respondio` | `BackEnd/` | Resetea `respondio` en postulaciones no cerradas (ver nota abajo; admite `--dry-run`) |
-| `bun run test` | `BackEnd/` | 217 pruebas (Vitest) |
+| `bun run test` | `BackEnd/` | 222 pruebas (Vitest) |
 | `bun run typecheck` | `BackEnd/` | Chequeo de tipos |
 | `bun run lint` | `BackEnd/` | ESLint |
 | `bun run dev` | `FrontEnd/cvisto/` | Dev server (Vite) |
@@ -365,7 +365,7 @@ bun run dev   # o: npm run dev
 
 ## 🧪 Tests
 
-El backend cuenta con **217 tests** cubriendo:
+El backend cuenta con **222 tests** cubriendo:
 
 - Autenticación (OAuth, JWT)
 - CRUD de empresas, contactos, postulaciones, emails, seguimientos
@@ -380,7 +380,7 @@ Los tests corren contra una base **SQLite local** para no afectar la base remota
 # En BackEnd/
 bun run test
 # → Test Files  22 passed (22)
-# →      Tests  217 passed (217)
+# →      Tests  222 passed (222)
 ```
 
 ---

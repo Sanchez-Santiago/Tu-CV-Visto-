@@ -40,12 +40,34 @@ function esErrorTransitorio(error: unknown): boolean {
   return /respondió (429|500|502|503|504)/.test(mensaje);
 }
 
-function limpiarJson(texto: string): unknown {
-  const limpio = texto
+/**
+ * Parsea la respuesta de un proveedor tolerando las deformaciones típicas
+ * de modelos chicos/gratuitos: fences markdown, prosa alrededor del JSON
+ * y objeto único en vez de array. Lanza si no hay JSON rescatable.
+ * (Los validadores de ia.service.ts siguen descartando entradas inválidas.)
+ */
+export function parsearJsonIA(texto: string): unknown {
+  const sinFences = texto
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
-  return JSON.parse(limpio);
+  try {
+    return normalizarRespuestaIA(JSON.parse(sinFences));
+  } catch {
+    // Último recurso: extraer desde el primer '[' hasta el último ']'.
+    const inicio = sinFences.indexOf('[');
+    const fin = sinFences.lastIndexOf(']');
+    if (inicio !== -1 && fin > inicio) {
+      return normalizarRespuestaIA(JSON.parse(sinFences.slice(inicio, fin + 1)));
+    }
+    throw new SyntaxError('La IA no devolvió JSON válido');
+  }
+}
+
+function normalizarRespuestaIA(datos: unknown): unknown {
+  if (Array.isArray(datos)) return datos;
+  if (datos !== null && typeof datos === 'object') return [datos];
+  throw new SyntaxError('La IA devolvió un formato inválido');
 }
 
 const TOPE_ESPERA_RETRY_MS = 60_000;
@@ -155,7 +177,7 @@ class ProveedorGemini implements ProveedorIA {
     if (typeof texto !== 'string' || texto.trim() === '') {
       throw new Error('Gemini devolvió una respuesta vacía');
     }
-    return limpiarJson(texto);
+    return parsearJsonIA(texto);
   }
 }
 
@@ -211,7 +233,7 @@ class ProveedorOpenAICompatible implements ProveedorIA {
     if (typeof texto !== 'string' || texto.trim() === '') {
       throw new Error(`${this.config.etiqueta} devolvió una respuesta vacía`);
     }
-    return limpiarJson(texto);
+    return parsearJsonIA(texto);
   }
 }
 
@@ -251,7 +273,7 @@ class ProveedorAnthropic implements ProveedorIA {
     if (texto.trim() === '') {
       throw new Error('Anthropic devolvió una respuesta vacía');
     }
-    return limpiarJson(texto);
+    return parsearJsonIA(texto);
   }
 }
 

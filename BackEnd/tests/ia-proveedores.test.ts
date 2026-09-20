@@ -10,6 +10,7 @@ import {
   extraerEsperaRetry,
   obtenerUltimoProveedorIA,
   ordenProveedores,
+  parsearJsonIA,
 } from '../src/services/ia-proveedores';
 
 const CLAVES = [
@@ -425,5 +426,61 @@ describe('extraerEsperaRetry', () => {
     expect(extraerEsperaRetry('{"error":"falla"}')).toBeNull();
     expect(extraerEsperaRetry('"retryDelay": "0s"')).toBeNull();
     expect(extraerEsperaRetry('')).toBeNull();
+  });
+});
+
+describe('parsearJsonIA', () => {
+  it('parsea un array con fences markdown', () => {
+    expect(
+      parsearJsonIA('```json\n[{"index": 0, "tipo": "otro"}]\n```'),
+    ).toEqual([{ index: 0, tipo: 'otro' }]);
+  });
+
+  it('rescata un array envuelto en prosa', () => {
+    expect(
+      parsearJsonIA(
+        'Claro, aquí va el análisis:\n[{"index": 0, "tipo": "novedad"}]\nEspero que sirva.',
+      ),
+    ).toEqual([{ index: 0, tipo: 'novedad' }]);
+  });
+
+  it('envuelve un objeto único en array', () => {
+    expect(
+      parsearJsonIA('{"index": 0, "es_postulacion": true}'),
+    ).toEqual([{ index: 0, es_postulacion: true }]);
+  });
+
+  it('lanza si no hay JSON rescatable', () => {
+    expect(() => parsearJsonIA('User, no puedo ayudar con eso.')).toThrow();
+    expect(() => parsearJsonIA('"solo un string"')).toThrow();
+    expect(() => parsearJsonIA('')).toThrow();
+  });
+});
+
+describe('tolerancia a modelos gratuitos', () => {
+  it('openrouter con JSON envuelto en prosa clasifica igual', async () => {
+    configurarEnv({ OPENROUTER_API_KEY: 'clave-openrouter' });
+    mockFetch((url) => {
+      if (url.includes('openrouter.ai')) {
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content:
+                    'Aquí está:\n[{"index": 0, "tipo": "novedad", "confianza": 70, "motivo": "ok"}]\nListo.',
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return null;
+    });
+
+    const resultado = await clasificarLote([emailPrueba()]);
+    expect(resultado[0]?.tipo).toBe('novedad');
+    expect(obtenerUltimoProveedorIA()).toBe('openrouter');
   });
 });
