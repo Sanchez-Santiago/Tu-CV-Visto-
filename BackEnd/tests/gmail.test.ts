@@ -133,17 +133,22 @@ beforeAll(async () => {
     email: 'candidato@test.com',
   });
   usuarioId = usuario.id;
+  token = await firmarToken({
+    usuario_id: usuarioId,
+    email: usuario.email,
+    nombre: usuario.nombre,
+  });
 
   const empresa = await db.execute({
-    sql: "INSERT INTO empresas (nombre) VALUES (?) RETURNING id",
-    args: ['Empresa Gmail'],
+    sql: 'INSERT INTO empresas (usuario_id, nombre) VALUES (?, ?) RETURNING id',
+    args: [usuarioId, 'Empresa Gmail'],
   });
   empresaId = Number(empresa.rows[0]!.id);
 
   const postulacionRes = await request(app)
     .post('/api/postulaciones')
+    .set('Authorization', `Bearer ${token}`)
     .send({
-      usuario_id: usuarioId,
       empresa_id: empresaId,
       puesto: 'Backend Engineer',
     });
@@ -164,11 +169,6 @@ beforeAll(async () => {
     ],
   });
 
-  token = await firmarToken({
-    usuario_id: usuarioId,
-    email: usuario.email,
-    nombre: usuario.nombre,
-  });
 });
 
 afterAll(async () => {
@@ -272,11 +272,25 @@ describe('POST /api/gmail/enviar', () => {
       email: sinCuenta.email,
       nombre: sinCuenta.nombre,
     });
+    // Postulación propia: si se usara la del usuario principal, el chequeo de
+    // ownership respondería 404 antes de llegar al 401 de "sin Google".
+    const empresaSinCuenta = await request(app)
+      .post('/api/empresas')
+      .set('Authorization', `Bearer ${tokenSinCuenta}`)
+      .send({ nombre: 'Empresa Sin Google' });
+    const postulacionSinCuenta = await request(app)
+      .post('/api/postulaciones')
+      .set('Authorization', `Bearer ${tokenSinCuenta}`)
+      .send({
+        empresa_id: empresaSinCuenta.body.data.id,
+        puesto: 'Backend Engineer',
+      });
+
     const res = await request(app)
       .post('/api/gmail/enviar')
       .set('Authorization', `Bearer ${tokenSinCuenta}`)
       .send({
-        postulacion_id: postulacionId,
+        postulacion_id: postulacionSinCuenta.body.data.id,
         destinatario: 'rrhh@empresa.com',
         asunto: 'Hola',
         cuerpo: 'Mundo',
@@ -328,7 +342,7 @@ describe('POST /api/gmail/enviar', () => {
       })
       .expect(201);
 
-    const seguimientos = await SeguimientoModel.listar({ postulacionId });
+    const seguimientos = await SeguimientoModel.listar({ usuarioId, postulacionId });
     const creado = seguimientos.find((s) => s.fecha_programada === '2026-09-20');
     expect(creado).toBeDefined();
     expect(creado!.enviado).toBe(1);

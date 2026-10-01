@@ -21,6 +21,7 @@ const CAMPOS_ACTUALIZABLES = {
 } as const;
 
 export interface FiltroEmails {
+  usuarioId: number;
   postulacionId?: number;
 }
 
@@ -32,16 +33,17 @@ const COLUMNAS_SELECT = `
 `;
 
 export const EmailModel = {
-  async crear(input: CrearEmailInput): Promise<EmailRow> {
+  async crear(usuarioId: number, input: CrearEmailInput): Promise<EmailRow> {
     const resultado = await db.execute({
       sql: `
         INSERT INTO emails
-          (postulacion_id, gmail_message_id, tipo, tipo_seguimiento, asunto,
+          (usuario_id, postulacion_id, gmail_message_id, tipo, tipo_seguimiento, asunto,
            remitente, destinatario, fecha, enviado, contenido_resumen, cuerpo_html,
            tipo_respuesta, tipo_respuesta_fuente)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
+        usuarioId,
         input.postulacion_id,
         input.gmail_message_id ?? null,
         input.tipo,
@@ -64,11 +66,11 @@ export const EmailModel = {
     return creado;
   },
 
-  async listar(filtros: FiltroEmails = {}): Promise<EmailRow[]> {
-    const args: InValue[] = [];
-    let where = '';
+  async listar(filtros: FiltroEmails): Promise<EmailRow[]> {
+    const args: InValue[] = [filtros.usuarioId];
+    let where = 'WHERE usuario_id = ?';
     if (filtros.postulacionId) {
-      where = 'WHERE postulacion_id = ?';
+      where += ' AND postulacion_id = ?';
       args.push(filtros.postulacionId);
     }
 
@@ -91,12 +93,29 @@ export const EmailModel = {
     return (resultado.rows[0] as unknown as EmailRow) ?? null;
   },
 
+  async obtenerPorIdDeUsuario(
+    id: number,
+    usuarioId: number,
+  ): Promise<EmailRow | null> {
+    const resultado = await db.execute({
+      sql: `${COLUMNAS_SELECT} WHERE id = ? AND usuario_id = ?`,
+      args: [id, usuarioId],
+    });
+    return (resultado.rows[0] as unknown as EmailRow) ?? null;
+  },
+
+  /**
+   * El dedupe tiene que incluir al usuario: con gmail_message_id solo, el
+   * email sincronizado por un usuario hacia de existir el del otro con el
+   * mismo id de Gmail.
+   */
   async obtenerPorGmailMessageId(
     gmailMessageId: string,
+    usuarioId: number,
     tipo?: string,
   ): Promise<EmailRow | null> {
-    let sql = `${COLUMNAS_SELECT} WHERE gmail_message_id = ?`;
-    const args: InValue[] = [gmailMessageId];
+    let sql = `${COLUMNAS_SELECT} WHERE gmail_message_id = ? AND usuario_id = ?`;
+    const args: InValue[] = [gmailMessageId, usuarioId];
     if (tipo) {
       sql += ' AND tipo = ?';
       args.push(tipo);
@@ -107,6 +126,7 @@ export const EmailModel = {
 
   async actualizar(
     id: number,
+    usuarioId: number,
     input: ActualizarEmailInput,
   ): Promise<EmailRow | null> {
     const sets: string[] = [];
@@ -121,24 +141,24 @@ export const EmailModel = {
     }
 
     if (sets.length === 0) {
-      return this.obtenerPorId(id);
+      return this.obtenerPorIdDeUsuario(id, usuarioId);
     }
 
     const resultado = await db.execute({
-      sql: `UPDATE emails SET ${sets.join(', ')} WHERE id = ?`,
-      args: [...args, id],
+      sql: `UPDATE emails SET ${sets.join(', ')} WHERE id = ? AND usuario_id = ?`,
+      args: [...args, id, usuarioId],
     });
 
     if (resultado.rowsAffected === 0) {
       return null;
     }
-    return this.obtenerPorId(id);
+    return this.obtenerPorIdDeUsuario(id, usuarioId);
   },
 
-  async eliminar(id: number): Promise<boolean> {
+  async eliminar(id: number, usuarioId: number): Promise<boolean> {
     const resultado = await db.execute({
-      sql: 'DELETE FROM emails WHERE id = ?',
-      args: [id],
+      sql: 'DELETE FROM emails WHERE id = ? AND usuario_id = ?',
+      args: [id, usuarioId],
     });
     return resultado.rowsAffected > 0;
   },
@@ -150,8 +170,7 @@ export const EmailModel = {
                e.asunto, e.remitente, e.destinatario, e.fecha, e.enviado,
                e.contenido_resumen, e.tipo_respuesta, e.tipo_respuesta_fuente, e.created_at
         FROM emails e
-        JOIN postulaciones p ON p.id = e.postulacion_id
-        WHERE p.usuario_id = ?
+        WHERE e.usuario_id = ?
         ORDER BY e.fecha DESC, e.id DESC
       `,
       args: [usuarioId],
@@ -159,19 +178,16 @@ export const EmailModel = {
     return resultado.rows as unknown as EmailRow[];
   },
 
-  async listarGmailMessageIds(usuarioId: number, emailUsuario: string): Promise<string[]> {
+  async listarGmailMessageIds(usuarioId: number): Promise<string[]> {
     const resultado = await db.execute({
       sql: `
         SELECT gmail_message_id
         FROM emails
-        WHERE gmail_message_id IS NOT NULL
+        WHERE usuario_id = ?
+          AND gmail_message_id IS NOT NULL
           AND gmail_message_id != ''
-          AND (
-            postulacion_id IN (SELECT id FROM postulaciones WHERE usuario_id = ?)
-            OR remitente = ? OR destinatario = ?
-          )
       `,
-      args: [usuarioId, emailUsuario, emailUsuario],
+      args: [usuarioId],
     });
     return resultado.rows.map((r) => r.gmail_message_id as string);
   },
@@ -201,7 +217,7 @@ export const EmailModel = {
   },
 
   async listarSinPostulacionParaIA(
-    emailUsuario: string,
+    usuarioId: number,
     limite = 100,
   ): Promise<EmailRow[]> {
     const resultado = await db.execute({
@@ -210,13 +226,13 @@ export const EmailModel = {
                e.asunto, e.remitente, e.destinatario, e.fecha, e.enviado,
                e.contenido_resumen, e.tipo_respuesta, e.tipo_respuesta_fuente, e.created_at
         FROM emails e
-        WHERE e.postulacion_id IS NULL
+        WHERE e.usuario_id = ?
+          AND e.postulacion_id IS NULL
           AND e.tipo_respuesta IS NULL
-          AND (e.remitente = ? OR e.destinatario = ?)
         ORDER BY e.fecha ASC, e.id ASC
         LIMIT ?
       `,
-      args: [emailUsuario, emailUsuario, limite],
+      args: [usuarioId, limite],
     });
     return resultado.rows as unknown as EmailRow[];
   },

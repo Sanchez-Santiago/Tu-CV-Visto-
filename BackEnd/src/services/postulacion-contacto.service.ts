@@ -1,19 +1,20 @@
 import { ContactoRrhhModel } from '../models/contacto-rrhh.model';
 import { PostulacionContactoModel } from '../models/postulacion-contacto.model';
-import { PostulacionModel } from '../models/postulacion.model';
 import type { ContactoRrhhRow } from '../types/models';
 import { ConflictError, NotFoundError } from '../utils/errors';
+import { postulacionDeUsuario } from '../utils/scope';
 
 export const PostulacionContactoService = {
   async asignar(
+    usuarioId: number,
     postulacionId: number,
     contactoRrhhId: number,
   ): Promise<ContactoRrhhRow> {
-    const postulacion = await PostulacionModel.obtenerPorId(postulacionId);
-    if (!postulacion) {
-      throw new NotFoundError(`Postulación ${postulacionId} no encontrada`);
-    }
-    const contacto = await ContactoRrhhModel.obtenerPorId(contactoRrhhId);
+    await postulacionDeUsuario(postulacionId, usuarioId);
+    const contacto = await ContactoRrhhModel.obtenerPorIdDeUsuario(
+      contactoRrhhId,
+      usuarioId,
+    );
     if (!contacto) {
       throw new NotFoundError(`Contacto ${contactoRrhhId} no encontrado`);
     }
@@ -27,19 +28,25 @@ export const PostulacionContactoService = {
   },
 
   async listarContactos(
+    usuarioId: number,
     postulacionId: number,
   ): Promise<ContactoRrhhRow[]> {
-    const postulacion = await PostulacionModel.obtenerPorId(postulacionId);
-    if (!postulacion) {
-      throw new NotFoundError(`Postulación ${postulacionId} no encontrada`);
-    }
+    await postulacionDeUsuario(postulacionId, usuarioId);
     return PostulacionContactoModel.listarContactosDePostulacion(
       postulacionId,
     );
   },
 
-  async quitar(postulacionId: number, contactoRrhhId: number): Promise<void> {
-    const contacto = await ContactoRrhhModel.obtenerPorId(contactoRrhhId);
+  async quitar(
+    usuarioId: number,
+    postulacionId: number,
+    contactoRrhhId: number,
+  ): Promise<void> {
+    await postulacionDeUsuario(postulacionId, usuarioId);
+    const contacto = await ContactoRrhhModel.obtenerPorIdDeUsuario(
+      contactoRrhhId,
+      usuarioId,
+    );
     if (!contacto) {
       throw new NotFoundError(`Contacto ${contactoRrhhId} no encontrado`);
     }

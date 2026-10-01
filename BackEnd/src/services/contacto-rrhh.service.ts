@@ -15,13 +15,14 @@ function esErrorConstraintUnico(error: unknown): boolean {
 }
 
 export const ContactoRrhhService = {
-  async crear(input: CrearContactoRrhhInput): Promise<ContactoRrhhRow> {
-    const empresa = await EmpresaModel.obtenerPorId(input.empresa_id);
-    if (!empresa) {
-      throw new NotFoundError(`Empresa ${input.empresa_id} no encontrada`);
-    }
+  async crear(
+    usuarioId: number,
+    input: CrearContactoRrhhInput,
+  ): Promise<ContactoRrhhRow> {
+    await exigirEmpresaDeUsuario(input.empresa_id, usuarioId);
     if (
       await ContactoRrhhModel.existeEmailEnEmpresa(
+        usuarioId,
         input.email,
         input.empresa_id,
       )
@@ -31,7 +32,7 @@ export const ContactoRrhhService = {
       );
     }
     try {
-      return await ContactoRrhhModel.crear(input);
+      return await ContactoRrhhModel.crear(usuarioId, input);
     } catch (error) {
       if (esErrorConstraintUnico(error)) {
         throw new ConflictError(
@@ -42,47 +43,47 @@ export const ContactoRrhhService = {
     }
   },
 
-  async obtenerPorId(id: number): Promise<ContactoRrhhRow> {
-    const contacto = await ContactoRrhhModel.obtenerPorId(id);
+  async obtenerPorId(usuarioId: number, id: number): Promise<ContactoRrhhRow> {
+    const contacto = await ContactoRrhhModel.obtenerPorIdDeUsuario(id, usuarioId);
     if (!contacto) {
       throw new NotFoundError(`Contacto ${id} no encontrado`);
     }
     return contacto;
   },
 
-  async listar(empresaId?: number): Promise<ContactoRrhhRow[]> {
+  async listar(usuarioId: number, empresaId?: number): Promise<ContactoRrhhRow[]> {
     if (empresaId !== undefined) {
-      const empresa = await EmpresaModel.obtenerPorId(empresaId);
-      if (!empresa) {
-        throw new NotFoundError(`Empresa ${empresaId} no encontrada`);
-      }
+      await exigirEmpresaDeUsuario(empresaId, usuarioId);
     }
-    return ContactoRrhhModel.listar(empresaId);
+    return ContactoRrhhModel.listar(usuarioId, empresaId);
   },
 
-  async listarPorEmpresa(empresaId: number): Promise<ContactoRrhhRow[]> {
-    const empresa = await EmpresaModel.obtenerPorId(empresaId);
-    if (!empresa) {
-      throw new NotFoundError(`Empresa ${empresaId} no encontrada`);
-    }
-    return ContactoRrhhModel.listarPorEmpresa(empresaId);
+  async listarPorEmpresa(
+    usuarioId: number,
+    empresaId: number,
+  ): Promise<ContactoRrhhRow[]> {
+    await exigirEmpresaDeUsuario(empresaId, usuarioId);
+    return ContactoRrhhModel.listarPorEmpresa(usuarioId, empresaId);
   },
 
   async actualizar(
+    usuarioId: number,
     id: number,
     input: ActualizarContactoRrhhInput,
   ): Promise<ContactoRrhhRow> {
-    const actual = await this.obtenerPorId(id);
+    const actual = await this.obtenerPorId(usuarioId, id);
 
     const empresaId = input.empresa_id ?? actual.empresa_id;
-    const empresa = await EmpresaModel.obtenerPorId(empresaId);
-    if (!empresa) {
-      throw new NotFoundError(`Empresa ${empresaId} no encontrada`);
-    }
+    await exigirEmpresaDeUsuario(empresaId, usuarioId);
 
     if (
       input.email &&
-      (await ContactoRrhhModel.existeEmailEnEmpresa(input.email, empresaId, id))
+      (await ContactoRrhhModel.existeEmailEnEmpresa(
+        usuarioId,
+        input.email,
+        empresaId,
+        id,
+      ))
     ) {
       throw new ConflictError(
         `Ya existe un contacto con el email "${input.email}" en esa empresa`,
@@ -90,7 +91,11 @@ export const ContactoRrhhService = {
     }
 
     try {
-      const actualizado = await ContactoRrhhModel.actualizar(id, input);
+      const actualizado = await ContactoRrhhModel.actualizar(
+        id,
+        usuarioId,
+        input,
+      );
       if (!actualizado) {
         throw new NotFoundError(`Contacto ${id} no encontrado`);
       }
@@ -105,10 +110,20 @@ export const ContactoRrhhService = {
     }
   },
 
-  async eliminar(id: number): Promise<void> {
-    const eliminado = await ContactoRrhhModel.eliminar(id);
+  async eliminar(usuarioId: number, id: number): Promise<void> {
+    const eliminado = await ContactoRrhhModel.eliminar(id, usuarioId);
     if (!eliminado) {
       throw new NotFoundError(`Contacto ${id} no encontrado`);
     }
   },
 };
+
+async function exigirEmpresaDeUsuario(
+  empresaId: number,
+  usuarioId: number,
+): Promise<void> {
+  const empresa = await EmpresaModel.obtenerPorIdDeUsuario(empresaId, usuarioId);
+  if (!empresa) {
+    throw new NotFoundError(`Empresa ${empresaId} no encontrada`);
+  }
+}

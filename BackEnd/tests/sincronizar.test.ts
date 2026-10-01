@@ -113,17 +113,22 @@ beforeAll(async () => {
     email: 'candidato@test.com',
   });
   usuarioId = usuario.id;
+  token = await firmarToken({
+    usuario_id: usuarioId,
+    email: usuario.email,
+    nombre: usuario.nombre,
+  });
 
   const empresa = await db.execute({
-    sql: "INSERT INTO empresas (nombre) VALUES (?) RETURNING id",
-    args: ['Empresa Sync'],
+    sql: 'INSERT INTO empresas (usuario_id, nombre) VALUES (?, ?) RETURNING id',
+    args: [usuarioId, 'Empresa Sync'],
   });
   empresaId = Number(empresa.rows[0]!.id);
 
   const postulacionRes = await request(app)
     .post('/api/postulaciones')
+    .set('Authorization', `Bearer ${token}`)
     .send({
-      usuario_id: usuarioId,
       empresa_id: empresaId,
       puesto: 'Backend Engineer',
     });
@@ -144,7 +149,8 @@ beforeAll(async () => {
     ],
   });
 
-  await request(app).post('/api/emails').send({
+  await request(app).post('/api/emails').set('Authorization', `Bearer ${token}`)
+  .send({
     postulacion_id: postulacionId,
     tipo: 'seguimiento',
     remitente: usuario.email,
@@ -154,11 +160,6 @@ beforeAll(async () => {
     gmail_message_id: 'gmail-out-10',
   });
 
-  token = await firmarToken({
-    usuario_id: usuarioId,
-    email: usuario.email,
-    nombre: usuario.nombre,
-  });
 });
 
 afterAll(async () => {
@@ -193,7 +194,8 @@ describe('GET /api/gmail/sincronizar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect(postulacion.body.data.respondio).toBe(1);
     expect(postulacion.body.data.estado).toBe('entrevista');
   });
@@ -201,7 +203,8 @@ describe('GET /api/gmail/sincronizar', () => {
   it('guarda el email recibido con tipo respuesta', async () => {
     const res = await request(app).get(
       `/api/emails?postulacion_id=${postulacionId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     const recibido = res.body.data.find(
       (e: { tipo: string }) => e.tipo === 'respuesta',
     );
@@ -212,7 +215,7 @@ describe('GET /api/gmail/sincronizar', () => {
   });
 
   it('guarda los emails sin match con postulacion_id null', async () => {
-    const res = await request(app).get('/api/emails');
+    const res = await request(app).get('/api/emails').set('Authorization', `Bearer ${token}`);
     const sinAsociar = res.body.data.find(
       (e: { gmail_message_id: string }) => e.gmail_message_id === 'gmail-msg-20',
     );
@@ -223,7 +226,7 @@ describe('GET /api/gmail/sincronizar', () => {
   });
 
   it('guarda el contenido completo en cuerpo_html', async () => {
-    const res = await request(app).get('/api/emails');
+    const res = await request(app).get('/api/emails').set('Authorization', `Bearer ${token}`);
     const recibido = res.body.data.find(
       (e: { gmail_message_id: string }) => e.gmail_message_id === 'gmail-msg-10',
     );
@@ -258,7 +261,8 @@ describe('GET /api/gmail/sincronizar', () => {
 
     const emails = await request(app).get(
       `/api/emails?postulacion_id=${postulacionId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     const recibidos = emails.body.data.filter(
       (e: { tipo: string }) => e.tipo === 'respuesta',
     );
@@ -364,7 +368,7 @@ describe('GET /api/gmail/sincronizar', () => {
       expect(llamadasInbox).toBeGreaterThanOrEqual(2);
       expect(res.body.data.importados).toBe(2);
 
-      const emails = await request(app).get('/api/emails');
+      const emails = await request(app).get('/api/emails').set('Authorization', `Bearer ${token}`);
       const ids = emails.body.data.map(
         (e: { gmail_message_id: string }) => e.gmail_message_id,
       );
@@ -434,7 +438,7 @@ describe('GET /api/gmail/sincronizar', () => {
       vi.stubGlobal('fetch', fetchMock);
     }
 
-    const emails = await request(app).get('/api/emails');
+    const emails = await request(app).get('/api/emails').set('Authorization', `Bearer ${token}`);
     const enviado = emails.body.data.find(
       (e: { gmail_message_id: string }) => e.gmail_message_id === 'gmail-sent-30',
     );
@@ -448,12 +452,12 @@ describe('GET /api/gmail/sincronizar', () => {
 
   it('una alerta vinculada no marca respondio en la postulación', async () => {
     const empresaRes = await db.execute({
-      sql: 'INSERT INTO empresas (nombre) VALUES (?) RETURNING id',
-      args: ['Empresa Alerta'],
+      sql: 'INSERT INTO empresas (usuario_id, nombre) VALUES (?, ?) RETURNING id',
+      args: [usuarioId, 'Empresa Alerta'],
     });
     const empresaAlertaId = Number(empresaRes.rows[0]!.id);
-    const postRes = await request(app).post('/api/postulaciones').send({
-      usuario_id: usuarioId,
+    const postRes = await request(app).post('/api/postulaciones').set('Authorization', `Bearer ${token}`)
+    .send({
       empresa_id: empresaAlertaId,
       puesto: 'Frontend Developer',
     });
@@ -524,7 +528,7 @@ describe('GET /api/gmail/sincronizar', () => {
       vi.stubGlobal('fetch', fetchMock);
     }
 
-    const emails = await request(app).get('/api/emails');
+    const emails = await request(app).get('/api/emails').set('Authorization', `Bearer ${token}`);
     const alerta = emails.body.data.find(
       (e: { gmail_message_id: string }) =>
         e.gmail_message_id === 'gmail-alert-40',
@@ -537,7 +541,8 @@ describe('GET /api/gmail/sincronizar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionAlertaId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect(postulacion.body.data.respondio).toBe(0);
     expect(postulacion.body.data.estado).toBe('pendiente');
   });

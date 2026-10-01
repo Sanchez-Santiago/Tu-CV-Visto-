@@ -6,7 +6,6 @@ import { UsuarioModel } from '../src/models/usuario.model';
 import { firmarToken } from '../src/utils/jwt';
 import { resetTestDb } from './helpers/test-db';
 
-let usuarioId = 0;
 let token = '';
 
 function auth(): { Authorization: string } {
@@ -20,9 +19,8 @@ beforeAll(async () => {
     nombre: 'Estrategia Stats',
     email: 'stats@test.com',
   });
-  usuarioId = usuario.id;
   token = await firmarToken({
-    usuario_id: usuarioId,
+    usuario_id: usuario.id,
     email: usuario.email,
     nombre: usuario.nombre,
   });
@@ -35,6 +33,7 @@ afterAll(async () => {
 async function crearEmpresa(nombre: string): Promise<number> {
   const res = await request(app)
     .post('/api/empresas')
+    .set(auth())
     .send({ nombre });
   return res.body.data.id as number;
 }
@@ -45,8 +44,8 @@ async function crearPostulacion(
 ): Promise<number> {
   const res = await request(app)
     .post('/api/postulaciones')
+    .set(auth())
     .send({
-      usuario_id: usuarioId,
       empresa_id: empresaId,
       puesto: 'Puesto ' + Math.random().toString(36).slice(2, 8),
       ...overrides,
@@ -63,7 +62,8 @@ describe('GET /api/estrategia/estadisticas', () => {
       estado: 'entrevista',
       cantidad_mails_enviados: 2,
     });
-    await request(app).post('/api/emails').send({
+    await request(app).post('/api/emails').set(auth())
+    .send({
       postulacion_id: a,
       tipo: 'seguimiento',
       remitente: 'stats@test.com',
@@ -79,7 +79,8 @@ describe('GET /api/estrategia/estadisticas', () => {
       respondio: 1,
       cantidad_mails_enviados: 1,
     });
-    await request(app).post('/api/emails').send({
+    await request(app).post('/api/emails').set(auth())
+    .send({
       postulacion_id: b,
       tipo: 'respuesta',
       remitente: 'rrhh@stats.com',

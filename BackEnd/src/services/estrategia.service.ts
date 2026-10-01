@@ -7,6 +7,7 @@ import { PostulacionModel } from '../models/postulacion.model';
 import type { EmailRow, PostulacionRow } from '../types/models';
 import type { TipoSeguimiento } from '../types/common';
 import { AppError, NotFoundError } from '../utils/errors';
+import { postulacionDeUsuario } from '../utils/scope';
 import {
   calcularHorasHabilesTranscurridas,
   hanPasadoHorasHabiles,
@@ -148,17 +149,19 @@ function sugerirTipo(
 }
 
 async function obtenerDestinatario(
+  usuarioId: number,
   postulacionId: number,
 ): Promise<string | null> {
-  const emails = await EmailModel.listar({ postulacionId });
+  const emails = await EmailModel.listar({ usuarioId, postulacionId });
   const enviado = emails.find(
     (email) => email.enviado === 1 && Boolean(email.destinatario),
   );
   if (enviado) return enviado.destinatario;
 
-  const postulacion = await PostulacionModel.obtenerPorId(postulacionId);
-  if (postulacion?.empresa_id !== null && postulacion?.empresa_id !== undefined) {
+  const postulacion = await postulacionDeUsuario(postulacionId, usuarioId);
+  if (postulacion.empresa_id !== null && postulacion.empresa_id !== undefined) {
     const contactos = await ContactoRrhhModel.listarPorEmpresa(
+      usuarioId,
       postulacion.empresa_id,
     );
     const contacto = contactos.find((c) => Boolean(c.email));
@@ -216,7 +219,7 @@ export const EstrategiaService = {
       const diasDesde = diasDesdeUltimoContacto(fila, hoy);
       const tipo = sugerirTipo(fila.cantidad_mails_enviados, diasDesde);
       const [destinatario, plantilla] = await Promise.all([
-        obtenerDestinatario(fila.id),
+        obtenerDestinatario(usuarioId, fila.id),
         PlantillaService.generar({ tipo, usuarioId, postulacionId: fila.id }),
       ]);
 
@@ -278,7 +281,7 @@ export const EstrategiaService = {
         );
       }
 
-      const destinatario = await obtenerDestinatario(item.postulacion_id);
+      const destinatario = await obtenerDestinatario(usuarioId, item.postulacion_id);
       if (!destinatario) {
         throw new AppError(
           400,
@@ -318,7 +321,7 @@ export const EstrategiaService = {
   async revisionRechazos(usuarioId: number): Promise<RechazoDetectado[]> {
     const postulaciones = await PostulacionModel.listar({ usuarioId });
     const postulacionNombres = new Map<number, string>();
-    const empresas = await EmpresaModel.listar();
+    const empresas = await EmpresaModel.listar(usuarioId);
     const nombreEmpresa = new Map<number, string>();
     for (const empresa of empresas) {
       nombreEmpresa.set(empresa.id, empresa.nombre);
@@ -381,10 +384,11 @@ export const EstrategiaService = {
     if (!postulacion || postulacion.usuario_id !== usuarioId) {
       throw new NotFoundError(`Postulación ${postulacionId} no encontrada`);
     }
-    const actualizada = await PostulacionModel.actualizar(postulacionId, {
-      estado: 'rechazado',
-      respondio: 1,
-    });
+    const actualizada = await PostulacionModel.actualizar(
+      postulacionId,
+      usuarioId,
+      { estado: 'rechazado', respondio: 1 },
+    );
     if (!actualizada) {
       throw new NotFoundError(`Postulación ${postulacionId} no encontrada`);
     }

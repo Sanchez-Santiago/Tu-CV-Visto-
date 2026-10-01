@@ -3,7 +3,9 @@ import { fechaDia, flag, INTERESES, MODALIDADES } from '../types/common';
 import { ESTADOS_POSTULACION } from '../types/common';
 
 export const crearPostulacionSchema = z.object({
-  usuario_id: z.number().int().positive('usuario_id debe ser positivo'),
+  // usuario_id NO se acepta desde el cliente: el backend lo toma de la
+  // sesión. Antes venía en el body y permitía crear o robar postulaciones
+  // de otro usuario.
   empresa_id: z.number().int().positive('empresa_id debe ser positivo'),
   puesto: z
     .string({ required_error: 'puesto es obligatorio' })
@@ -33,7 +35,6 @@ export const listarPostulacionesQuery = z.object({
   interes: z.enum(INTERESES).optional(),
   modalidad: z.enum(MODALIDADES).optional(),
   empresa_id: z.coerce.number().int().positive().optional(),
-  usuario_id: z.coerce.number().int().positive().optional(),
 });
 export type ListarPostulacionesQuery = z.infer<
   typeof listarPostulacionesQuery

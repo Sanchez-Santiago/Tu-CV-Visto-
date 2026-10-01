@@ -1,14 +1,15 @@
-import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { db } from '../src/config/database';
 import { UsuarioModel } from '../src/models/usuario.model';
 import type { EmailRow, EmpresaRow, PostulacionRow, UsuarioRow } from '../src/types/models';
+import { api, headersDe } from './helpers/auth';
 import { resetTestDb } from './helpers/test-db';
 
 let usuario: UsuarioRow;
 let empresa: EmpresaRow;
 let postulacion: PostulacionRow;
+let auth: { Authorization: string };
 
 beforeAll(async () => {
   await resetTestDb(db);
@@ -17,15 +18,15 @@ beforeAll(async () => {
     nombre: 'Candidato Emails',
     email: 'emails@test.com',
   });
-  const resEmpresa = await request(app)
+  auth = await headersDe(usuario.id, usuario.email);
+  const resEmpresa = await api(app, auth)
     .post('/api/empresas')
     .send({ nombre: 'Empresa Emails' });
   empresa = resEmpresa.body.data as EmpresaRow;
 
-  const resPost = await request(app)
+  const resPost = await api(app, auth)
     .post('/api/postulaciones')
     .send({
-      usuario_id: usuario.id,
       empresa_id: empresa.id,
       puesto: 'Frontend Developer',
     });
@@ -37,13 +38,13 @@ afterAll(async () => {
 });
 
 async function leerPostulacion(id: number): Promise<PostulacionRow> {
-  const res = await request(app).get(`/api/postulaciones/${id}`);
+  const res = await api(app, auth).get(`/api/postulaciones/${id}`);
   return res.body.data as PostulacionRow;
 }
 
 describe('Emails — POST', () => {
   it('crea un email enviado e incrementa cantidad_mails_enviados', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/emails')
       .send({
         postulacion_id: postulacion.id,
@@ -66,7 +67,7 @@ describe('Emails — POST', () => {
   });
 
   it('crea un email no enviado sin tocar el contador', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/emails')
       .send({
         postulacion_id: postulacion.id,
@@ -83,7 +84,7 @@ describe('Emails — POST', () => {
   });
 
   it('responde 404 si la postulación no existe', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/emails')
       .send({
         postulacion_id: 999999,
@@ -98,10 +99,10 @@ describe('Emails — POST', () => {
 
 describe('Emails — GET', () => {
   it('lista emails y filtra por postulación', async () => {
-    const todos = await request(app).get('/api/emails');
+    const todos = await api(app, auth).get('/api/emails');
     expect((todos.body.data as EmailRow[]).length).toBeGreaterThanOrEqual(2);
 
-    const deLa = await request(app)
+    const deLa = await api(app, auth)
       .get('/api/emails')
       .query({ postulacion_id: postulacion.id });
     for (const e of deLa.body.data as EmailRow[]) {
@@ -110,7 +111,7 @@ describe('Emails — GET', () => {
   });
 
   it('responde 404 para un email inexistente', async () => {
-    const res = await request(app).get('/api/emails/999999');
+    const res = await api(app, auth).get('/api/emails/999999');
     expect(res.status).toBe(404);
   });
 });
@@ -120,7 +121,7 @@ describe('Emails — PUT', () => {
     const creado = await creaEmail({ enviado: 0, fecha: '2026-09-12T08:00:00Z' });
     const antes = await leerPostulacion(postulacion.id);
 
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/emails/${creado.id}`)
       .send({ enviado: 1 });
     expect(res.status).toBe(200);
@@ -133,7 +134,7 @@ describe('Emails — PUT', () => {
 
   it('marca un email enviado como no enviado y decrementa', async () => {
     const creado = await creaEmail({ enviado: 1, fecha: '2026-09-13T08:00:00Z' });
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/emails/${creado.id}`)
       .send({ enviado: 0 });
     expect(res.status).toBe(200);
@@ -150,19 +151,19 @@ describe('Emails — DELETE', () => {
     const creado = await creaEmail({ enviado: 1, fecha: '2026-09-14T08:00:00Z' });
     const antes = await leerPostulacion(postulacion.id);
 
-    expect((await request(app).delete(`/api/emails/${creado.id}`)).status).toBe(204);
+    expect((await api(app, auth).delete(`/api/emails/${creado.id}`)).status).toBe(204);
     const despues = await leerPostulacion(postulacion.id);
     expect(despues.cantidad_mails_enviados).toBe(Math.max(0, antes.cantidad_mails_enviados - 1));
   });
 
   it('responde 404 al eliminar un inexistente', async () => {
-    const res = await request(app).delete('/api/emails/999999');
+    const res = await api(app, auth).delete('/api/emails/999999');
     expect(res.status).toBe(404);
   });
 });
 
 async function creaEmail(overrides: Record<string, unknown> = {}): Promise<EmailRow> {
-  const res = await request(app)
+  const res = await api(app, auth)
     .post('/api/emails')
     .send({
       postulacion_id: postulacion.id,

@@ -179,12 +179,12 @@ export function usuarioFila(fila: Record<string, unknown>): Usuario {
 }
 
 // ─── Frontend → Backend (columns = identity, 1:1) ────────────
+// El usuario se toma del token en el backend: nunca se manda usuario_id
+// desde el cliente (permitía crear postulaciones en nombre de otro).
 export function postulacionPayload(
   data: PostulacionSinId,
-  usuarioId: number,
 ): Record<string, unknown> {
   return {
-    usuario_id: usuarioId,
     empresa_id: data.empresaId,
     puesto: data.puesto,
     modalidad: data.modalidad ?? null,

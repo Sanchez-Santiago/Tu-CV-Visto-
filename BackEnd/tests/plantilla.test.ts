@@ -1,14 +1,15 @@
-import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { db } from '../src/config/database';
 import { UsuarioModel } from '../src/models/usuario.model';
 import { PlantillaService } from '../src/services/plantilla.service';
 import type { EmpresaRow, UsuarioRow } from '../src/types/models';
+import { api, headersDe } from './helpers/auth';
 import { resetTestDb } from './helpers/test-db';
 
 let usuario: UsuarioRow;
 let postulacionId = 0;
+let auth: { Authorization: string };
 
 beforeAll(async () => {
   await resetTestDb(db);
@@ -17,17 +18,18 @@ beforeAll(async () => {
     nombre: 'Santiago Sánchez',
     email: 'santiago@test.com',
   });
+  auth = await headersDe(usuario.id, usuario.email);
   await db.execute({
     sql: 'UPDATE usuarios SET perfil = ? WHERE id = ?',
     args: ['Desarrollador Backend con foco en APIs y bases de datos', usuario.id],
   });
 
-  const resEmpresa = await request(app)
+  const resEmpresa = await api(app, auth)
     .post('/api/empresas')
     .send({ nombre: 'Globant' });
   const empresa = resEmpresa.body.data as EmpresaRow;
 
-  const resContacto = await request(app)
+  const resContacto = await api(app, auth)
     .post('/api/contactos-rrhh')
     .send({
       empresa_id: empresa.id,
@@ -37,16 +39,15 @@ beforeAll(async () => {
     });
   const contactoId = resContacto.body.data.id;
 
-  const resPost = await request(app)
+  const resPost = await api(app, auth)
     .post('/api/postulaciones')
     .send({
-      usuario_id: usuario.id,
       empresa_id: empresa.id,
       puesto: 'Backend Engineer',
     });
   postulacionId = resPost.body.data.id;
 
-  await request(app)
+  await api(app, auth)
     .post(`/api/postulaciones/${postulacionId}/contactos`)
     .send({ contacto_rrhh_id: contactoId });
 

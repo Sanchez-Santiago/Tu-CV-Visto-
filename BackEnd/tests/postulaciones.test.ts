@@ -4,10 +4,12 @@ import { app } from '../src/app';
 import { db } from '../src/config/database';
 import { UsuarioModel } from '../src/models/usuario.model';
 import type { EmpresaRow, PostulacionRow, UsuarioRow } from '../src/types/models';
+import { api, headersDe } from './helpers/auth';
 import { resetTestDb } from './helpers/test-db';
 
 let usuario: UsuarioRow;
 let empresa: EmpresaRow;
+let auth: { Authorization: string };
 
 beforeAll(async () => {
   await resetTestDb(db);
@@ -15,7 +17,8 @@ beforeAll(async () => {
     nombre: 'Postulante',
     email: 'postulante@test.com',
   });
-  const res = await request(app)
+  auth = await headersDe(usuario.id, usuario.email);
+  const res = await api(app, auth)
     .post('/api/empresas')
     .send({ nombre: 'Postulaciones SA' });
   empresa = res.body.data as EmpresaRow;
@@ -27,7 +30,6 @@ afterAll(async () => {
 
 function payloadPostulacion(overrides: Record<string, unknown> = {}) {
   return {
-    usuario_id: usuario.id,
     empresa_id: empresa.id,
     puesto: 'Backend Developer',
     ...overrides,
@@ -36,7 +38,7 @@ function payloadPostulacion(overrides: Record<string, unknown> = {}) {
 
 describe('Postulaciones — POST', () => {
   it('crea una postulación con valores por defecto', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/postulaciones')
       .send(payloadPostulacion());
     expect(res.status).toBe(201);
@@ -47,7 +49,7 @@ describe('Postulaciones — POST', () => {
   });
 
   it('respeta estado e interés explícitos', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/postulaciones')
       .send(
         payloadPostulacion({ estado: 'entrevista', interes: 'alto' }),
@@ -57,22 +59,30 @@ describe('Postulaciones — POST', () => {
     expect(res.body.data.interes).toBe('alto');
   });
 
-  it('responde 404 si el usuario no existe', async () => {
+  it('exige autenticación', async () => {
     const res = await request(app)
       .post('/api/postulaciones')
+      .send(payloadPostulacion());
+    expect(res.status).toBe(401);
+  });
+
+  it('ignora el usuario_id del body y usa el del token', async () => {
+    const res = await api(app, auth)
+      .post('/api/postulaciones')
       .send(payloadPostulacion({ usuario_id: 999999 }));
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(201);
+    expect(res.body.data.usuario_id).toBe(usuario.id);
   });
 
   it('responde 404 si la empresa no existe', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/postulaciones')
       .send(payloadPostulacion({ empresa_id: 999999 }));
     expect(res.status).toBe(404);
   });
 
   it('rechaza un estado inválido', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/postulaciones')
       .send(payloadPostulacion({ estado: 'no-existe' }));
     expect(res.status).toBe(400);
@@ -81,13 +91,13 @@ describe('Postulaciones — POST', () => {
 
 describe('Postulaciones — GET (listado y filtros)', () => {
   it('lista postulaciones', async () => {
-    const res = await request(app).get('/api/postulaciones');
+    const res = await api(app, auth).get('/api/postulaciones');
     expect(res.status).toBe(200);
     expect((res.body.data as PostulacionRow[]).length).toBeGreaterThanOrEqual(2);
   });
 
   it('filtra por estado', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .get('/api/postulaciones')
       .query({ estado: 'entrevista' });
     expect(res.status).toBe(200);
@@ -99,7 +109,7 @@ describe('Postulaciones — GET (listado y filtros)', () => {
   });
 
   it('filtra por empresa', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .get('/api/postulaciones')
       .query({ empresa_id: empresa.id });
     expect(res.status).toBe(200);
@@ -109,14 +119,14 @@ describe('Postulaciones — GET (listado y filtros)', () => {
   });
 
   it('rechaza un filtro de estado inválido', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .get('/api/postulaciones')
       .query({ estado: 'nada' });
     expect(res.status).toBe(400);
   });
 
   it('responde 404 para una postulación inexistente', async () => {
-    const res = await request(app).get('/api/postulaciones/999999');
+    const res = await api(app, auth).get('/api/postulaciones/999999');
     expect(res.status).toBe(404);
   });
 });
@@ -124,7 +134,7 @@ describe('Postulaciones — GET (listado y filtros)', () => {
 describe('Postulaciones — PUT', () => {
   it('actualiza puesto y estado', async () => {
     const creada = await creaPostulacion();
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/postulaciones/${creada.id}`)
       .send({ puesto: 'Senior Backend', estado: 'en_proceso' });
     expect(res.status).toBe(200);
@@ -132,17 +142,18 @@ describe('Postulaciones — PUT', () => {
     expect(res.body.data.estado).toBe('en_proceso');
   });
 
-  it('responde 404 si el nuevo usuario no existe', async () => {
+  it('no permite cambiar de dueño con usuario_id en el body', async () => {
     const creada = await creaPostulacion();
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/postulaciones/${creada.id}`)
       .send({ usuario_id: 999999 });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.body.data.usuario_id).toBe(usuario.id);
   });
 
   it('responde 404 si la nueva empresa no existe', async () => {
     const creada = await creaPostulacion();
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/postulaciones/${creada.id}`)
       .send({ empresa_id: 999999 });
     expect(res.status).toBe(404);
@@ -152,13 +163,13 @@ describe('Postulaciones — PUT', () => {
 describe('Postulaciones — DELETE', () => {
   it('elimina una postulación existente', async () => {
     const creada = await creaPostulacion();
-    const res = await request(app).delete(`/api/postulaciones/${creada.id}`);
+    const res = await api(app, auth).delete(`/api/postulaciones/${creada.id}`);
     expect(res.status).toBe(204);
-    expect((await request(app).get(`/api/postulaciones/${creada.id}`)).status).toBe(404);
+    expect((await api(app, auth).get(`/api/postulaciones/${creada.id}`)).status).toBe(404);
   });
 
   it('responde 404 al eliminar una inexistente', async () => {
-    const res = await request(app).delete('/api/postulaciones/999999');
+    const res = await api(app, auth).delete('/api/postulaciones/999999');
     expect(res.status).toBe(404);
   });
 });
@@ -167,7 +178,7 @@ describe('Postulaciones — GET /:id/relacion', () => {
   it('devuelve la línea de tiempo con emails y seguimientos', async () => {
     const postulacion = await creaPostulacion();
 
-    await request(app).post('/api/emails').send({
+    await api(app, auth).post('/api/emails').send({
       postulacion_id: postulacion.id,
       tipo: 'seguimiento',
       tipo_seguimiento: 'novedad',
@@ -176,13 +187,13 @@ describe('Postulaciones — GET /:id/relacion', () => {
       fecha: '2026-09-10T10:00:00Z',
       enviado: 1,
     });
-    await request(app).post('/api/seguimientos').send({
+    await api(app, auth).post('/api/seguimientos').send({
       postulacion_id: postulacion.id,
       fecha_programada: '2026-09-25',
       tipo_seguimiento: 'nuevo_proyecto',
     });
 
-    const res = await request(app).get(`/api/postulaciones/${postulacion.id}/relacion`);
+    const res = await api(app, auth).get(`/api/postulaciones/${postulacion.id}/relacion`);
     expect(res.status).toBe(200);
     expect(res.body.data.postulacion.id).toBe(postulacion.id);
 
@@ -196,13 +207,13 @@ describe('Postulaciones — GET /:id/relacion', () => {
   });
 
   it('responde 404 para una postulación inexistente', async () => {
-    const res = await request(app).get('/api/postulaciones/999999/relacion');
+    const res = await api(app, auth).get('/api/postulaciones/999999/relacion');
     expect(res.status).toBe(404);
   });
 });
 
 async function creaPostulacion(): Promise<PostulacionRow> {
-  const res = await request(app)
+  const res = await api(app, auth)
     .post('/api/postulaciones')
     .send(payloadPostulacion({ puesto: `Puesto ${Date.now()}` }));
   return res.body.data as PostulacionRow;

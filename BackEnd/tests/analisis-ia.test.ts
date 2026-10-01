@@ -40,8 +40,8 @@ let postulacionIdempotente = 0;
 classificarIA('rechazo');
 
 async function crearPostulacion(estado: string): Promise<number> {
-  const res = await request(app).post('/api/postulaciones').send({
-    usuario_id: usuarioId,
+  const res = await request(app).post('/api/postulaciones').set('Authorization', `Bearer ${token}`)
+  .send({
     empresa_id: empresaId,
     puesto: 'Senior Engineer',
   });
@@ -90,13 +90,14 @@ async function insertarEmail(opts: {
   const res = await db.execute({
     sql: `
       INSERT INTO emails
-        (postulacion_id, gmail_message_id, tipo, asunto, remitente, destinatario,
+        (usuario_id, postulacion_id, gmail_message_id, tipo, asunto, remitente, destinatario,
          fecha, enviado, contenido_resumen, tipo_respuesta, tipo_respuesta_fuente)
-      VALUES (?, ?, 'respuesta', ?, 'rrhh@empresa.com', 'candidato@test.com',
+      VALUES (?, ?, ?, 'respuesta', ?, 'rrhh@empresa.com', 'candidato@test.com',
               ?, 0, ?, NULL, NULL)
       RETURNING id
     `,
     args: [
+      usuarioId,
       opts.postulacionId,
       opts.gmailMessageId ?? `ia-${Date.now()}-${Math.random()}`,
       opts.asunto ?? 'Respuesta',
@@ -117,13 +118,14 @@ async function insertarEmailSinPostulacion(opts: {
   const res = await db.execute({
     sql: `
       INSERT INTO emails
-        (postulacion_id, gmail_message_id, tipo, asunto, remitente, destinatario,
+        (usuario_id, postulacion_id, gmail_message_id, tipo, asunto, remitente, destinatario,
          fecha, enviado, contenido_resumen, tipo_respuesta, tipo_respuesta_fuente)
-      VALUES (NULL, ?, 'respuesta', ?, ?, 'candidato-ia@test.com',
+      VALUES (?, NULL, ?, 'respuesta', ?, ?, 'candidato-ia@test.com',
               ?, ?, ?, NULL, NULL)
       RETURNING id
     `,
     args: [
+      usuarioId,
       opts.gmailMessageId ?? `sin-${Date.now()}-${Math.random()}`,
       opts.asunto ?? 'Respuesta',
       opts.remitente ?? 'rrhh@empresax.com',
@@ -152,10 +154,15 @@ beforeAll(async () => {
     email: 'candidato-ia@test.com',
   });
   usuarioId = usuario.id;
+  token = await firmarToken({
+    usuario_id: usuarioId,
+    email: usuario.email,
+    nombre: usuario.nombre,
+  });
 
   const empresa = await db.execute({
-    sql: "INSERT INTO empresas (nombre) VALUES (?) RETURNING id",
-    args: ['Empresa IA'],
+    sql: 'INSERT INTO empresas (usuario_id, nombre) VALUES (?, ?) RETURNING id',
+    args: [usuarioId, 'Empresa IA'],
   });
   empresaId = Number(empresa.rows[0]!.id);
 
@@ -165,11 +172,6 @@ beforeAll(async () => {
   postulacionFallback = await crearPostulacion('pendiente');
   postulacionIdempotente = await crearPostulacion('pendiente');
 
-  token = await firmarToken({
-    usuario_id: usuarioId,
-    email: usuario.email,
-    nombre: usuario.nombre,
-  });
 });
 
 afterAll(async () => {
@@ -208,12 +210,14 @@ describe('POST /api/gmail/analizar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionIARechazo}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect(postulacion.body.data.estado).toBe('rechazado');
 
     const emails = await request(app).get(
       `/api/emails?postulacion_id=${postulacionIARechazo}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     const guardado = emails.body.data.find(
       (e: { id: number }) => e.id === emailId,
     );
@@ -240,7 +244,8 @@ describe('POST /api/gmail/analizar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionIAEntrevista}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect(postulacion.body.data.estado).toBe('entrevista');
   });
 
@@ -264,7 +269,8 @@ describe('POST /api/gmail/analizar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionCerrada}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect(postulacion.body.data.estado).toBe('aceptado');
   });
 
@@ -337,7 +343,8 @@ describe('POST /api/gmail/analizar', () => {
 
     const buscado = await request(app).get(
       `/api/postulaciones?usuario_id=${usuarioId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     const creada = (buscado.body.data as Array<Record<string, unknown>>).find(
       (p) =>
         p.empresa_id !== empresaId && p.puesto === 'Backend Developer',
@@ -429,7 +436,8 @@ describe('POST /api/gmail/analizar', () => {
     );
     const antes = await request(app).get(
       `/api/postulaciones?usuario_id=${usuarioId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     const totalAntes = (antes.body.data as unknown[]).length;
     const emailId = await insertarEmailSinPostulacion({
       contenido: 'Tenemos 5 empleos que te pueden interesar esta semana.',
@@ -443,7 +451,8 @@ describe('POST /api/gmail/analizar', () => {
 
     const despues = await request(app).get(
       `/api/postulaciones?usuario_id=${usuarioId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect((despues.body.data as unknown[]).length).toBe(totalAntes);
 
     const emailRow = await db.execute({
@@ -497,12 +506,12 @@ describe('POST /api/gmail/analizar', () => {
 
   it('vincular un email enviado no marca respondio en la postulación', async () => {
     const empresaZ = await db.execute({
-      sql: "INSERT INTO empresas (nombre) VALUES ('Empresa Z') RETURNING id",
-      args: [],
+      sql: `INSERT INTO empresas (usuario_id, nombre) VALUES (?, 'Empresa Z') RETURNING id`,
+      args: [usuarioId],
     });
     const empresaZId = Number(empresaZ.rows[0]!.id);
-    const resCrear = await request(app).post('/api/postulaciones').send({
-      usuario_id: usuarioId,
+    const resCrear = await request(app).post('/api/postulaciones').set('Authorization', `Bearer ${token}`)
+    .send({
       empresa_id: empresaZId,
       puesto: 'Soporte Técnico',
     });
@@ -538,19 +547,20 @@ describe('POST /api/gmail/analizar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionZId}`,
-    );
+    )
+    .set('Authorization', `Bearer ${token}`);
     expect(postulacion.body.data.respondio).toBe(0);
     expect(postulacion.body.data.estado).toBe('pendiente');
   });
 
   it('vincula a una postulación existente en vez de duplicarla', async () => {
     const empresaY = await db.execute({
-      sql: "INSERT INTO empresas (nombre) VALUES ('empresay') RETURNING id",
-      args: [],
+      sql: `INSERT INTO empresas (usuario_id, nombre) VALUES (?, 'empresay') RETURNING id`,
+      args: [usuarioId],
     });
     const empresaYId = Number(empresaY.rows[0]!.id);
-    const resCrear = await request(app).post('/api/postulaciones').send({
-      usuario_id: usuarioId,
+    const resCrear = await request(app).post('/api/postulaciones').set('Authorization', `Bearer ${token}`)
+    .send({
       empresa_id: empresaYId,
       puesto: 'Marketing Lead',
     });
@@ -575,7 +585,7 @@ describe('POST /api/gmail/analizar', () => {
     });
     expect(emailRow.rows[0]!.postulacion_id).toBe(postulacionYId);
 
-    const lista = await request(app).get('/api/postulaciones');
+    const lista = await request(app).get('/api/postulaciones').set('Authorization', `Bearer ${token}`);
     const ids: number[] = lista.body.data.map((p: { id: number }) => p.id);
     expect(ids.filter((id) => id === postulacionYId)).toHaveLength(1);
   });

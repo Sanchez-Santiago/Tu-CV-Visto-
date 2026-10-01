@@ -1,10 +1,10 @@
-import { PostulacionModel } from '../models/postulacion.model';
 import {
   SeguimientoModel,
   type FiltroSeguimientos,
 } from '../models/seguimiento.model';
 import type { SeguimientoRow } from '../types/models';
 import { NotFoundError } from '../utils/errors';
+import { postulacionDeUsuario } from '../utils/scope';
 import type {
   ActualizarSeguimientoInput,
   CrearSeguimientoInput,
@@ -15,62 +15,54 @@ function hoy(): string {
 }
 
 export const SeguimientoService = {
-  async crear(input: CrearSeguimientoInput): Promise<SeguimientoRow> {
-    const postulacion = await PostulacionModel.obtenerPorId(
-      input.postulacion_id,
-    );
-    if (!postulacion) {
-      throw new NotFoundError(
-        `Postulación ${input.postulacion_id} no encontrada`,
-      );
-    }
-    return SeguimientoModel.crear(input);
+  async crear(
+    usuarioId: number,
+    input: CrearSeguimientoInput,
+  ): Promise<SeguimientoRow> {
+    await postulacionDeUsuario(input.postulacion_id, usuarioId);
+    return SeguimientoModel.crear(usuarioId, input);
   },
 
-  listar(filtros: FiltroSeguimientos = {}): Promise<SeguimientoRow[]> {
-    return SeguimientoModel.listar(filtros);
+  listar(
+    usuarioId: number,
+    filtros: Omit<FiltroSeguimientos, 'usuarioId'> = {},
+  ): Promise<SeguimientoRow[]> {
+    return SeguimientoModel.listar({ usuarioId, ...filtros });
   },
 
-  async listarPendientes(): Promise<SeguimientoRow[]> {
-    return SeguimientoModel.listar({ soloPendientes: true });
+  listarPendientes(usuarioId: number): Promise<SeguimientoRow[]> {
+    return SeguimientoModel.listar({ usuarioId, soloPendientes: true });
   },
 
-  async obtenerPorId(id: number): Promise<SeguimientoRow> {
+  async obtenerPorId(usuarioId: number, id: number): Promise<SeguimientoRow> {
     const seguimiento = await SeguimientoModel.obtenerPorId(id);
     if (!seguimiento) {
       throw new NotFoundError(`Seguimiento ${id} no encontrado`);
     }
+    await postulacionDeUsuario(seguimiento.postulacion_id, usuarioId);
     return seguimiento;
   },
 
   async listarDePostulacion(
+    usuarioId: number,
     postulacionId: number,
   ): Promise<SeguimientoRow[]> {
-    const postulacion = await PostulacionModel.obtenerPorId(postulacionId);
-    if (!postulacion) {
-      throw new NotFoundError(`Postulación ${postulacionId} no encontrada`);
-    }
-    return SeguimientoModel.listar({ postulacionId });
+    await postulacionDeUsuario(postulacionId, usuarioId);
+    return SeguimientoModel.listar({ usuarioId, postulacionId });
   },
 
   async actualizar(
+    usuarioId: number,
     id: number,
     input: ActualizarSeguimientoInput,
   ): Promise<SeguimientoRow> {
-    const actual = await this.obtenerPorId(id);
+    const actual = await this.obtenerPorId(usuarioId, id);
 
     if (
       input.postulacion_id !== undefined &&
       input.postulacion_id !== actual.postulacion_id
     ) {
-      const postulacion = await PostulacionModel.obtenerPorId(
-        input.postulacion_id,
-      );
-      if (!postulacion) {
-        throw new NotFoundError(
-          `Postulación ${input.postulacion_id} no encontrada`,
-        );
-      }
+      await postulacionDeUsuario(input.postulacion_id, usuarioId);
     }
 
     // Al marcar como enviado se asigna la fecha de envío si aún no tiene una.
@@ -84,16 +76,16 @@ export const SeguimientoService = {
       datos = { ...datos, fecha_envio: hoy() };
     }
 
-    const actualizado = await SeguimientoModel.actualizar(id, datos);
+    const actualizado = await SeguimientoModel.actualizar(id, usuarioId, datos);
     if (!actualizado) {
       throw new NotFoundError(`Seguimiento ${id} no encontrado`);
     }
     return actualizado;
   },
 
-  async eliminar(id: number): Promise<void> {
-    await this.obtenerPorId(id);
-    const eliminado = await SeguimientoModel.eliminar(id);
+  async eliminar(usuarioId: number, id: number): Promise<void> {
+    await this.obtenerPorId(usuarioId, id);
+    const eliminado = await SeguimientoModel.eliminar(id, usuarioId);
     if (!eliminado) {
       throw new NotFoundError(`Seguimiento ${id} no encontrado`);
     }

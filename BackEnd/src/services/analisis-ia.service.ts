@@ -2,7 +2,6 @@ import { db } from '../config/database';
 import { EmpresaModel } from '../models/empresa.model';
 import { EmailModel } from '../models/email.model';
 import { PostulacionModel } from '../models/postulacion.model';
-import { UsuarioModel } from '../models/usuario.model';
 import type { EmailRow } from '../types/models';
 import type { PostulacionRow } from '../types/models';
 import type { EstadoPostulacion, TipoRespuesta } from '../types/common';
@@ -125,17 +124,12 @@ interface EmailPendiente {
 
 export const AnalisisIAService = {
   async analizarEmailsPendientes(usuarioId: number): Promise<ResumenAnalisisIA> {
-    const usuario = await UsuarioModel.obtenerPorId(usuarioId);
-    const emailUsuario = usuario?.email ?? '';
-
     const [pendientes, candidatas, postulaciones, empresasList] =
       await Promise.all([
         this.cargarPendientes(usuarioId),
-        emailUsuario
-          ? EmailModel.listarSinPostulacionParaIA(emailUsuario, LIMITE_CANDIDATOS)
-          : [],
+        EmailModel.listarSinPostulacionParaIA(usuarioId, LIMITE_CANDIDATOS),
         PostulacionModel.listar({ usuarioId }),
-        EmpresaModel.listar(),
+        EmpresaModel.listar(usuarioId),
       ]);
 
     const resultado: ResumenAnalisisIA = {
@@ -206,7 +200,7 @@ export const AnalisisIAService = {
             });
             fuente = 'keywords';
           }
-          await EmailModel.actualizar(email.id, {
+          await EmailModel.actualizar(email.id, usuarioId, {
             tipo_respuesta: tipo,
             tipo_respuesta_fuente: fuente,
           });
@@ -230,7 +224,7 @@ export const AnalisisIAService = {
           ESTADOS_ABIERTOS.includes(estadoAnterior) &&
           estadoAnterior !== objetivo
         ) {
-          await PostulacionModel.actualizar(email.postulacion_id, {
+          await PostulacionModel.actualizar(email.postulacion_id, usuarioId, {
             estado: objetivo,
           });
           estadoNuevo = objetivo;
@@ -331,7 +325,7 @@ export const AnalisisIAService = {
               email.contenido_resumen,
             ));
         if (esAlerta) {
-          await EmailModel.actualizar(email.id, {
+          await EmailModel.actualizar(email.id, usuarioId, {
             tipo_respuesta: 'otro',
             tipo_respuesta_fuente: fuente,
           });
@@ -345,14 +339,14 @@ export const AnalisisIAService = {
             continue;
           }
           if (!deteccionIA.es_postulacion) {
-            await EmailModel.actualizar(email.id, {
+            await EmailModel.actualizar(email.id, usuarioId, {
               tipo_respuesta: 'otro',
               tipo_respuesta_fuente: 'ia',
             });
             continue;
           }
         } else if (!esPostulacionPorKeywords(email)) {
-          await EmailModel.actualizar(email.id, {
+          await EmailModel.actualizar(email.id, usuarioId, {
             tipo_respuesta: 'otro',
             tipo_respuesta_fuente: 'keywords',
           });
@@ -371,7 +365,7 @@ export const AnalisisIAService = {
           if (existenteEmp) {
             empresaId = existenteEmp.id;
           } else {
-            const nuevaEmp = await EmpresaModel.crear({ nombre: empNombre });
+            const nuevaEmp = await EmpresaModel.crear(usuarioId, { nombre: empNombre });
             empresaId = nuevaEmp.id;
             empresasList.push({ id: nuevaEmp.id, nombre: nuevaEmp.nombre });
             nombreEmpresa.set(nuevaEmp.id, nuevaEmp.nombre);
@@ -379,7 +373,7 @@ export const AnalisisIAService = {
         }
 
         if (empresaId === null) {
-          empresaId = await AgendaService.agendarDesdeCorreo(contraparte);
+          empresaId = await AgendaService.agendarDesdeCorreo(usuarioId, contraparte);
         }
 
         if (empresaId === null) {
@@ -392,7 +386,7 @@ export const AnalisisIAService = {
             if (existenteEmp) {
               empresaId = existenteEmp.id;
             } else {
-              const nuevaEmp = await EmpresaModel.crear({ nombre: empNom });
+              const nuevaEmp = await EmpresaModel.crear(usuarioId, { nombre: empNom });
               empresaId = nuevaEmp.id;
               empresasList.push({ id: nuevaEmp.id, nombre: nuevaEmp.nombre });
               nombreEmpresa.set(nuevaEmp.id, nuevaEmp.nombre);
@@ -401,7 +395,7 @@ export const AnalisisIAService = {
         }
 
         if (empresaId === null) {
-          await EmailModel.actualizar(email.id, {
+          await EmailModel.actualizar(email.id, usuarioId, {
             tipo_respuesta: 'otro',
             tipo_respuesta_fuente: fuente,
           });
@@ -418,7 +412,7 @@ export const AnalisisIAService = {
         const tipoDetalle = this.tipoParaDetalle(email);
 
         if (existente) {
-          await EmailModel.actualizar(email.id, {
+          await EmailModel.actualizar(email.id, usuarioId, {
             postulacion_id: existente.id,
             tipo_respuesta: tipoDetalle,
             tipo_respuesta_fuente: fuente,
@@ -436,7 +430,7 @@ export const AnalisisIAService = {
                   ? 'en_proceso'
                   : (estadoAnterior as EstadoPostulacion);
 
-            await PostulacionModel.actualizar(existente.id, {
+            await PostulacionModel.actualizar(existente.id, usuarioId, {
               // El ruido ('otro') no cuenta como respuesta: no saca la
               // postulación de la cola de seguimiento.
               ...(tipoDetalle !== 'otro' ? { respondio: 1 } : {}),
@@ -474,8 +468,7 @@ export const AnalisisIAService = {
         }
 
         const estadoInicial = TRANSICIONES[tipoDetalle] ?? 'pendiente';
-        const postulacionCreada = await PostulacionModel.crear({
-          usuario_id: usuarioId,
+        const postulacionCreada = await PostulacionModel.crear(usuarioId, {
           empresa_id: empresaId,
           puesto,
           estado: estadoInicial,
@@ -488,7 +481,7 @@ export const AnalisisIAService = {
           observaciones: `Creada automáticamente desde el email "${(email.asunto ?? '').slice(0, 120)}"`,
         });
 
-        await EmailModel.actualizar(email.id, {
+        await EmailModel.actualizar(email.id, usuarioId, {
           postulacion_id: postulacionCreada.id,
           tipo_respuesta: tipoDetalle,
           tipo_respuesta_fuente: fuente,

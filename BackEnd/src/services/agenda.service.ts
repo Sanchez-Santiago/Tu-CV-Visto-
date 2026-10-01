@@ -47,7 +47,10 @@ export const AgendaService = {
    * Devuelve el id de la empresa creada/existente, o null si la
    * dirección es automática o no se puede derivar nombre.
    */
-  async agendarDesdeCorreo(direccion: string): Promise<number | null> {
+  async agendarDesdeCorreo(
+    usuarioId: number,
+    direccion: string,
+  ): Promise<number | null> {
     const email = extraerEmailDireccion(direccion);
     if (!email || esRemitenteAutomatico(email)) return null;
 
@@ -55,20 +58,26 @@ export const AgendaService = {
     if (!nombre) return null;
 
     let empresaId: number;
-    if (await EmpresaModel.existeNombre(nombre)) {
-      const empresas = await EmpresaModel.listar();
+    if (await EmpresaModel.existeNombre(usuarioId, nombre)) {
+      const empresas = await EmpresaModel.listar(usuarioId);
       const existente = empresas.find(
         (e) => e.nombre.toLowerCase() === nombre.toLowerCase(),
       );
       if (!existente) return null;
       empresaId = existente.id;
     } else {
-      const creada = await EmpresaModel.crear({ nombre });
+      const creada = await EmpresaModel.crear(usuarioId, { nombre });
       empresaId = creada.id;
     }
 
-    if (!(await ContactoRrhhModel.existeEmailEnEmpresa(email, empresaId))) {
-      await ContactoRrhhModel.crear({
+    if (
+      !(await ContactoRrhhModel.existeEmailEnEmpresa(
+        usuarioId,
+        email,
+        empresaId,
+      ))
+    ) {
+      await ContactoRrhhModel.crear(usuarioId, {
         empresa_id: empresaId,
         nombre: nombreDesdeLocalPart(email),
         email,

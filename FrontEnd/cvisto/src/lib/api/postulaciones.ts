@@ -3,7 +3,6 @@ import type { EstadoPostulacion, TipoSeguimiento } from "@/src/schemas/common";
 import { hoyDia, sumarDias } from "@/src/lib/fechas";
 import { request } from "./http";
 import { postulacionFila, postulacionPayload } from "./mappers";
-import { resolverUsuarioId } from "./usuario";
 
 export const postulacionesApi = {
   async getAll(): Promise<Postulacion[]> {
@@ -21,8 +20,7 @@ export const postulacionesApi = {
   },
 
   async create(data: PostulacionSinId): Promise<Postulacion> {
-    const usuarioId = await resolverUsuarioId();
-    const payload = postulacionPayload(data, usuarioId);
+    const payload = postulacionPayload(data);
     const creada = await request<Record<string, unknown>>("/postulaciones", {
       method: "POST",
       body: JSON.stringify(payload),

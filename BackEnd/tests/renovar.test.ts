@@ -68,6 +68,7 @@ afterAll(async () => {
 async function crearEmpresa(nombre: string): Promise<number> {
   const res = await request(app)
     .post('/api/empresas')
+    .set(auth())
     .send({ nombre });
   return res.body.data.id as number;
 }
@@ -78,8 +79,8 @@ async function crearPostulacion(
 ): Promise<number> {
   const res = await request(app)
     .post('/api/postulaciones')
+    .set(auth())
     .send({
-      usuario_id: usuarioId,
       empresa_id: empresaId,
       puesto: 'Puesto ' + Math.random().toString(36).slice(2, 8),
       ...overrides,
@@ -88,7 +89,8 @@ async function crearPostulacion(
 }
 
 async function registrarEmailSaliente(postulacionId: number): Promise<void> {
-  await request(app).post('/api/emails').send({
+  await request(app).post('/api/emails').set(auth())
+  .send({
     postulacion_id: postulacionId,
     tipo: 'seguimiento',
     remitente: 'renovar@test.com',
@@ -139,7 +141,8 @@ describe('POST /api/estrategia/renovar', () => {
 
     const emails = await request(app).get(
       `/api/emails?postulacion_id=${postulacionId}`,
-    );
+    )
+    .set(auth());
     const enviados = emails.body.data.filter(
       (e: { enviado: number }) => e.enviado === 1,
     );
@@ -147,7 +150,8 @@ describe('POST /api/estrategia/renovar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionId}`,
-    );
+    )
+    .set(auth());
     expect(postulacion.body.data.cantidad_mails_enviados).toBe(2);
   });
 
@@ -174,7 +178,8 @@ describe('POST /api/estrategia/renovar', () => {
 
     const emails = await request(app).get(
       `/api/emails?postulacion_id=${postulacionId}`,
-    );
+    )
+    .set(auth());
     const ultimo = emails.body.data.find(
       (e: { enviado: number; asunto: string }) =>
         e.enviado === 1 && e.asunto === 'Asunto personalizado',
@@ -203,7 +208,8 @@ describe('POST /api/estrategia/renovar', () => {
 
     const emails = await request(app).get(
       `/api/emails?postulacion_id=${postulacionId}`,
-    );
+    )
+    .set(auth());
     const enviado = emails.body.data.find(
       (e: { enviado: number; cuerpo_html: string | null }) =>
         e.enviado === 1 && (e.cuerpo_html ?? '').includes('cid:firma_'),
@@ -234,7 +240,8 @@ describe('POST /api/estrategia/renovar', () => {
 
     const postulacion = await request(app).get(
       `/api/postulaciones/${postulacionId}`,
-    );
+    )
+    .set(auth());
     expect(postulacion.body.data.respondio).toBe(0);
   });
 

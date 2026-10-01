@@ -1,14 +1,15 @@
-import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { db } from '../src/config/database';
 import { UsuarioModel } from '../src/models/usuario.model';
 import type { EmpresaRow, PostulacionRow, SeguimientoRow, UsuarioRow } from '../src/types/models';
+import { api, headersDe } from './helpers/auth';
 import { resetTestDb } from './helpers/test-db';
 
 let usuario: UsuarioRow;
 let empresa: EmpresaRow;
 let postulacion: PostulacionRow;
+let auth: { Authorization: string };
 
 beforeAll(async () => {
   await resetTestDb(db);
@@ -17,15 +18,15 @@ beforeAll(async () => {
     nombre: 'Candidato Seguim.',
     email: 'seguimiento@test.com',
   });
-  const resEmpresa = await request(app)
+  auth = await headersDe(usuario.id, usuario.email);
+  const resEmpresa = await api(app, auth)
     .post('/api/empresas')
     .send({ nombre: 'Empresa Seguim.' });
   empresa = resEmpresa.body.data as EmpresaRow;
 
-  const resPost = await request(app)
+  const resPost = await api(app, auth)
     .post('/api/postulaciones')
     .send({
-      usuario_id: usuario.id,
       empresa_id: empresa.id,
       puesto: 'Data Analyst',
     });
@@ -38,7 +39,7 @@ afterAll(async () => {
 
 describe('Seguimientos — POST', () => {
   it('crea un seguimiento pendiente con aprobación', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/seguimientos')
       .send({
         postulacion_id: postulacion.id,
@@ -51,7 +52,7 @@ describe('Seguimientos — POST', () => {
   });
 
   it('rechaza una fecha_programada con formato inválido', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/seguimientos')
       .send({
         postulacion_id: postulacion.id,
@@ -61,7 +62,7 @@ describe('Seguimientos — POST', () => {
   });
 
   it('responde 404 si la postulación no existe', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/seguimientos')
       .send({
         postulacion_id: 999999,
@@ -74,10 +75,10 @@ describe('Seguimientos — POST', () => {
 describe('Seguimientos — GET', () => {
   it('lista y filtra por postulación', async () => {
     await creaSeguimiento('2026-09-13');
-    const res = await request(app).get('/api/seguimientos');
+    const res = await api(app, auth).get('/api/seguimientos');
     expect((res.body.data as SeguimientoRow[]).length).toBeGreaterThanOrEqual(1);
 
-    const deLa = await request(app)
+    const deLa = await api(app, auth)
       .get('/api/seguimientos')
       .query({ postulacion_id: postulacion.id });
     for (const s of deLa.body.data as SeguimientoRow[]) {
@@ -86,7 +87,7 @@ describe('Seguimientos — GET', () => {
   });
 
   it('expone /pendientes', async () => {
-    const res = await request(app).get('/api/seguimientos/pendientes');
+    const res = await api(app, auth).get('/api/seguimientos/pendientes');
     expect(res.status).toBe(200);
     for (const s of res.body.data as SeguimientoRow[]) {
       expect(s.enviado).toBe(0);
@@ -94,7 +95,7 @@ describe('Seguimientos — GET', () => {
   });
 
   it('responde 404 para un seguimiento inexistente', async () => {
-    const res = await request(app).get('/api/seguimientos/999999');
+    const res = await api(app, auth).get('/api/seguimientos/999999');
     expect(res.status).toBe(404);
   });
 });
@@ -102,7 +103,7 @@ describe('Seguimientos — GET', () => {
 describe('Seguimientos — PUT', () => {
   it('asigna fecha de envío automáticamente al marcarlo como enviado', async () => {
     const creado = await creaSeguimiento('2026-09-20');
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/seguimientos/${creado.id}`)
       .send({ enviado: 1 });
     expect(res.status).toBe(200);
@@ -112,7 +113,7 @@ describe('Seguimientos — PUT', () => {
 
   it('respeta una fecha de envío explícita', async () => {
     const creado = await creaSeguimiento('2026-09-21');
-    const res = await request(app)
+    const res = await api(app, auth)
       .put(`/api/seguimientos/${creado.id}`)
       .send({ enviado: 1, fecha_envio: '2026-09-21' });
     expect(res.body.data.fecha_envio).toBe('2026-09-21');
@@ -122,18 +123,18 @@ describe('Seguimientos — PUT', () => {
 describe('Seguimientos — DELETE', () => {
   it('elimina un seguimiento existente', async () => {
     const creado = await creaSeguimiento('2026-10-01');
-    expect((await request(app).delete(`/api/seguimientos/${creado.id}`)).status).toBe(204);
-    expect((await request(app).get(`/api/seguimientos/${creado.id}`)).status).toBe(404);
+    expect((await api(app, auth).delete(`/api/seguimientos/${creado.id}`)).status).toBe(204);
+    expect((await api(app, auth).get(`/api/seguimientos/${creado.id}`)).status).toBe(404);
   });
 
   it('responde 404 al eliminar un inexistente', async () => {
-    const res = await request(app).delete('/api/seguimientos/999999');
+    const res = await api(app, auth).delete('/api/seguimientos/999999');
     expect(res.status).toBe(404);
   });
 });
 
 async function creaSeguimiento(fechaProgramada: string): Promise<SeguimientoRow> {
-  const res = await request(app)
+  const res = await api(app, auth)
     .post('/api/seguimientos')
     .send({ postulacion_id: postulacion.id, fecha_programada: fechaProgramada });
   return res.body.data as SeguimientoRow;

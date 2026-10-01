@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { GmailController } from '../controllers/gmail.controller';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import {
   validate,
   validateParams,
@@ -12,6 +13,9 @@ import {
 } from '../schemas/gmail';
 
 export const gmailRouter = Router();
+
+// Defensa en profundidad: no depende solo del montaje en app.ts
+gmailRouter.use(authMiddleware);
 
 gmailRouter.post('/enviar', validate(enviarGmailSchema), GmailController.enviar);
 gmailRouter.get('/sincronizar', GmailController.sincronizar);

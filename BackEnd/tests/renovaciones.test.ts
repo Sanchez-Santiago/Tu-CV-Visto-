@@ -6,7 +6,6 @@ import { UsuarioModel } from '../src/models/usuario.model';
 import { firmarToken } from '../src/utils/jwt';
 import { resetTestDb } from './helpers/test-db';
 
-let usuarioId = 0;
 let token = '';
 
 function addDays(fecha: string, dias: number): string {
@@ -22,6 +21,7 @@ function auth(): { Authorization: string } {
 async function crearEmpresa(nombre: string): Promise<number> {
   const res = await request(app)
     .post('/api/empresas')
+    .set(auth())
     .send({ nombre, cadencia_contacto: 10 });
   return res.body.data.id as number;
 }
@@ -32,8 +32,8 @@ async function crearPostulacion(
 ): Promise<number> {
   const res = await request(app)
     .post('/api/postulaciones')
+    .set(auth())
     .send({
-      usuario_id: usuarioId,
       empresa_id: empresaId,
       puesto: 'Puesto ' + Math.random().toString(36).slice(2, 8),
       ...overrides,
@@ -48,9 +48,8 @@ beforeAll(async () => {
     nombre: 'Estrategia Renov',
     email: 'renov@test.com',
   });
-  usuarioId = usuario.id;
   token = await firmarToken({
-    usuario_id: usuarioId,
+    usuario_id: usuario.id,
     email: usuario.email,
     nombre: usuario.nombre,
   });
@@ -164,7 +163,8 @@ describe('GET /api/estrategia/revision-rechazos y confirmar-rechazo', () => {
       cantidad_mails_enviados: 1,
     });
 
-    await request(app).post('/api/emails').send({
+    await request(app).post('/api/emails').set(auth())
+    .send({
       postulacion_id: postulacionId,
       tipo: 'respuesta',
       remitente: 'rrhh@rechazos.com',

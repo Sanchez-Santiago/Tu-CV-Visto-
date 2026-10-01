@@ -5,6 +5,7 @@ import {
   validateParams,
   validateQuery,
 } from '../middlewares/validation.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import { idParams } from '../schemas/common';
 import {
   actualizarEmailSchema,
@@ -13,6 +14,9 @@ import {
 } from '../schemas/email';
 
 export const emailsRouter = Router();
+
+// Defensa en profundidad: no depende solo del montaje en app.ts
+emailsRouter.use(authMiddleware);
 
 emailsRouter.get(
   '/',

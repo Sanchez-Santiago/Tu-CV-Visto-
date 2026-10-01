@@ -17,6 +17,7 @@ const CAMPOS_ACTUALIZABLES = {
 } as const;
 
 export interface FiltroSeguimientos {
+  usuarioId: number;
   postulacionId?: number;
   enviado?: 0 | 1;
   soloPendientes?: boolean;
@@ -29,15 +30,19 @@ const COLUMNAS_SELECT = `
 `;
 
 export const SeguimientoModel = {
-  async crear(input: CrearSeguimientoInput): Promise<SeguimientoRow> {
+  async crear(
+    usuarioId: number,
+    input: CrearSeguimientoInput,
+  ): Promise<SeguimientoRow> {
     const resultado = await db.execute({
       sql: `
         INSERT INTO seguimientos
-          (postulacion_id, fecha_programada, tipo_seguimiento, enviado,
+          (usuario_id, postulacion_id, fecha_programada, tipo_seguimiento, enviado,
            requiere_aprobacion, fecha_envio, observaciones)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
+        usuarioId,
         input.postulacion_id,
         input.fecha_programada,
         input.tipo_seguimiento,
@@ -54,9 +59,9 @@ export const SeguimientoModel = {
     return creado;
   },
 
-  async listar(filtros: FiltroSeguimientos = {}): Promise<SeguimientoRow[]> {
-    const condiciones: string[] = [];
-    const args: InValue[] = [];
+  async listar(filtros: FiltroSeguimientos): Promise<SeguimientoRow[]> {
+    const condiciones: string[] = ['usuario_id = ?'];
+    const args: InValue[] = [filtros.usuarioId];
 
     if (filtros.postulacionId) {
       condiciones.push('postulacion_id = ?');
@@ -70,13 +75,10 @@ export const SeguimientoModel = {
       condiciones.push('enviado = 0');
     }
 
-    const where =
-      condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
-
     const resultado = await db.execute({
       sql: `
         ${COLUMNAS_SELECT}
-        ${where}
+        WHERE ${condiciones.join(' AND ')}
         ORDER BY fecha_programada ASC, id ASC
       `,
       args,
@@ -94,6 +96,7 @@ export const SeguimientoModel = {
 
   async actualizar(
     id: number,
+    usuarioId: number,
     input: ActualizarSeguimientoInput,
   ): Promise<SeguimientoRow | null> {
     const sets: string[] = [];
@@ -112,8 +115,8 @@ export const SeguimientoModel = {
     }
 
     const resultado = await db.execute({
-      sql: `UPDATE seguimientos SET ${sets.join(', ')} WHERE id = ?`,
-      args: [...args, id],
+      sql: `UPDATE seguimientos SET ${sets.join(', ')} WHERE id = ? AND usuario_id = ?`,
+      args: [...args, id, usuarioId],
     });
 
     if (resultado.rowsAffected === 0) {
@@ -122,10 +125,10 @@ export const SeguimientoModel = {
     return this.obtenerPorId(id);
   },
 
-  async eliminar(id: number): Promise<boolean> {
+  async eliminar(id: number, usuarioId: number): Promise<boolean> {
     const resultado = await db.execute({
-      sql: 'DELETE FROM seguimientos WHERE id = ?',
-      args: [id],
+      sql: 'DELETE FROM seguimientos WHERE id = ? AND usuario_id = ?',
+      args: [id, usuarioId],
     });
     return resultado.rowsAffected > 0;
   },

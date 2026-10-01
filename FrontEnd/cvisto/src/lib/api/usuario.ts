@@ -1,14 +1,6 @@
 import type { Usuario } from "@/src/schemas/usuario";
-import { request, API_BASE, getSesionUsuarioId, setSesionUsuarioId } from "./http";
+import { request, API_BASE, setSesionUsuarioId } from "./http";
 import { usuarioFila } from "./mappers";
-
-// ─── Resolver de sesión ──────────────────────────────────────
-export async function resolverUsuarioId(): Promise<number> {
-  if (getSesionUsuarioId()) return getSesionUsuarioId()!;
-  const me = await USUARIO.getMe();
-  setSesionUsuarioId(Number(me.id));
-  return Number(me.id);
-}
 
 // ─── Auth helpers ────────────────────────────────────────────
 export const USUARIO = {

@@ -19,6 +19,7 @@ function addDays(fecha: string, dias: number): string {
 async function crearEmpresa(nombre: string, cadencia?: number): Promise<number> {
   const res = await request(app)
     .post('/api/empresas')
+    .set(auth())
     .send({ nombre, ...(cadencia ? { cadencia_contacto: cadencia } : {}) });
   return res.body.data.id as number;
 }
@@ -29,8 +30,8 @@ async function crearPostulacion(
 ): Promise<PostulacionRow> {
   const res = await request(app)
     .post('/api/postulaciones')
+    .set(auth())
     .send({
-      usuario_id: usuario.id,
       empresa_id: empresaId,
       puesto: 'Puesto ' + Math.random().toString(36).slice(2, 8),
       ...overrides,

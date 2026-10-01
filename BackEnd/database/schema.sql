@@ -176,6 +176,10 @@ CREATE TABLE IF NOT EXISTS contactos (
 CREATE TABLE IF NOT EXISTS empresas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
+    -- Cada usuario tiene su propio catalogo. Antes era compartido y su
+    -- DELETE en cascada destruia postulaciones de todos los usuarios.
+    usuario_id INTEGER NOT NULL,
+
     nombre TEXT NOT NULL,
 
     pais TEXT,
@@ -195,7 +199,11 @@ CREATE TABLE IF NOT EXISTS empresas (
     observaciones TEXT,
 
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE
 );
 
 
@@ -206,6 +214,8 @@ CREATE TABLE IF NOT EXISTS empresas (
 
 CREATE TABLE IF NOT EXISTS contactos_rrhh (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    usuario_id INTEGER NOT NULL,
 
     empresa_id INTEGER NOT NULL,
 
@@ -218,6 +228,10 @@ CREATE TABLE IF NOT EXISTS contactos_rrhh (
 
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE,
 
     FOREIGN KEY (empresa_id)
         REFERENCES empresas(id)
@@ -322,6 +336,11 @@ CREATE TABLE IF NOT EXISTS postulacion_contactos (
 CREATE TABLE IF NOT EXISTS emails (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
+    -- postulacion_id es nullable (emails sin postulacion), asi que el dueno
+    -- se guarda aqui: antes los huerfanos no eran atribuibles y se servian
+    -- a todos los usuarios.
+    usuario_id INTEGER NOT NULL,
+
     postulacion_id INTEGER,
 
     gmail_message_id TEXT,
@@ -365,6 +384,10 @@ CREATE TABLE IF NOT EXISTS emails (
 
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE,
+
     FOREIGN KEY (postulacion_id)
         REFERENCES postulaciones(id)
         ON DELETE CASCADE
@@ -378,6 +401,8 @@ CREATE TABLE IF NOT EXISTS emails (
 
 CREATE TABLE IF NOT EXISTS seguimientos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    usuario_id INTEGER NOT NULL,
 
     postulacion_id INTEGER NOT NULL,
 
@@ -403,6 +428,10 @@ CREATE TABLE IF NOT EXISTS seguimientos (
     observaciones TEXT,
 
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE,
 
     FOREIGN KEY (postulacion_id)
         REFERENCES postulaciones(id)
@@ -460,6 +489,12 @@ ON contactos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_contactos_rrhh_empresa
 ON contactos_rrhh(empresa_id);
 
+CREATE INDEX IF NOT EXISTS idx_contactos_rrhh_usuario
+ON contactos_rrhh(usuario_id);
+
+CREATE INDEX IF NOT EXISTS idx_empresas_usuario
+ON empresas(usuario_id);
+
 CREATE INDEX IF NOT EXISTS idx_postulaciones_usuario
 ON postulaciones(usuario_id);
 
@@ -469,11 +504,23 @@ ON postulaciones(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_postulaciones_estado
 ON postulaciones(estado);
 
+CREATE INDEX IF NOT EXISTS idx_postulacion_contactos_contacto
+ON postulacion_contactos(contacto_rrhh_id);
+
 CREATE INDEX IF NOT EXISTS idx_emails_postulacion
 ON emails(postulacion_id);
 
+CREATE INDEX IF NOT EXISTS idx_emails_usuario
+ON emails(usuario_id);
+
+CREATE INDEX IF NOT EXISTS idx_emails_usuario_gmail
+ON emails(usuario_id, gmail_message_id);
+
 CREATE INDEX IF NOT EXISTS idx_seguimientos_postulacion
 ON seguimientos(postulacion_id);
+
+CREATE INDEX IF NOT EXISTS idx_seguimientos_usuario
+ON seguimientos(usuario_id);
 
 CREATE INDEX IF NOT EXISTS idx_seguimientos_pendientes
 ON seguimientos(enviado, fecha_programada);

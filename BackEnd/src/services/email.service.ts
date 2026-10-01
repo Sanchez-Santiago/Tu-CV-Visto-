@@ -7,6 +7,7 @@ import { UsuarioModel } from '../models/usuario.model';
 import type { EmailRow } from '../types/models';
 import type { TipoRespuesta } from '../types/common';
 import { NotFoundError, ValidationError } from '../utils/errors';
+import { postulacionDeUsuario } from '../utils/scope';
 import { AgendaService } from './agenda.service';
 import { FirmaService } from './firma.service';
 import { GmailService } from './gmail.service';
@@ -99,18 +100,13 @@ async function proximaContactoPara(postulacionId: number): Promise<string> {
 }
 
 export const EmailService = {
-  async crear(input: CrearEmailInput): Promise<EmailRow> {
+  async crear(usuarioId: number, input: CrearEmailInput): Promise<EmailRow> {
     if (input.postulacion_id === null) {
       throw new ValidationError('postulacion_id es obligatorio al crear un email');
     }
-    const postulacion = await PostulacionModel.obtenerPorId(input.postulacion_id);
-    if (!postulacion) {
-      throw new NotFoundError(
-        `Postulación ${input.postulacion_id} no encontrada`,
-      );
-    }
+    await postulacionDeUsuario(input.postulacion_id, usuarioId);
 
-    const email = await EmailModel.crear(input);
+    const email = await EmailModel.crear(usuarioId, input);
     if (input.enviado === 1) {
       const proximaContacto = await proximaContactoPara(input.postulacion_id);
       await PostulacionModel.incrementarMails(
@@ -122,8 +118,8 @@ export const EmailService = {
     return email;
   },
 
-  listar(filtros: FiltroEmails = {}): Promise<EmailRow[]> {
-    return EmailModel.listar(filtros);
+  listar(usuarioId: number, filtros: Omit<FiltroEmails, 'usuarioId'> = {}): Promise<EmailRow[]> {
+    return EmailModel.listar({ usuarioId, ...filtros });
   },
 
   async registrarEntrada(
@@ -153,6 +149,7 @@ export const EmailService = {
 
     const existente = await EmailModel.obtenerPorGmailMessageId(
       input.gmailMessageId,
+      usuarioId,
     );
     if (existente) {
       return null;
@@ -163,7 +160,7 @@ export const EmailService = {
       throw new NotFoundError(`Usuario ${usuarioId} no encontrado`);
     }
 
-    const email = await EmailModel.crear({
+    const email = await EmailModel.crear(usuarioId, {
       postulacion_id: input.postulacionId,
       gmail_message_id: input.gmailMessageId,
       tipo: 'respuesta',
@@ -183,7 +180,7 @@ export const EmailService = {
       // las alertas de portales y el ruido ('otro') no sacan la
       // postulación de la cola de seguimiento.
       if (input.tipoRespuesta && input.tipoRespuesta !== 'otro') {
-        await PostulacionModel.actualizar(input.postulacionId, {
+        await PostulacionModel.actualizar(input.postulacionId, usuarioId, {
           respondio: 1,
         });
       }
@@ -217,6 +214,7 @@ export const EmailService = {
 
     const existente = await EmailModel.obtenerPorGmailMessageId(
       input.gmailMessageId,
+      usuarioId,
     );
     if (existente) {
       return null;
@@ -227,7 +225,7 @@ export const EmailService = {
       throw new NotFoundError(`Usuario ${usuarioId} no encontrado`);
     }
 
-    const email = await EmailModel.crear({
+    const email = await EmailModel.crear(usuarioId, {
       postulacion_id: input.postulacionId,
       gmail_message_id: input.gmailMessageId,
       tipo: input.postulacionId !== null ? 'postulacion' : 'seguimiento',
@@ -243,44 +241,38 @@ export const EmailService = {
     return email;
   },
 
-  async obtenerPorId(id: number): Promise<EmailRow> {
-    const email = await EmailModel.obtenerPorId(id);
+  async obtenerPorId(usuarioId: number, id: number): Promise<EmailRow> {
+    const email = await EmailModel.obtenerPorIdDeUsuario(id, usuarioId);
     if (!email) {
       throw new NotFoundError(`Email ${id} no encontrado`);
     }
     return email;
   },
 
-  async listarDePostulacion(postulacionId: number): Promise<EmailRow[]> {
-    const postulacion = await PostulacionModel.obtenerPorId(postulacionId);
-    if (!postulacion) {
-      throw new NotFoundError(`Postulación ${postulacionId} no encontrada`);
-    }
-    return EmailModel.listar({ postulacionId });
+  async listarDePostulacion(
+    usuarioId: number,
+    postulacionId: number,
+  ): Promise<EmailRow[]> {
+    await postulacionDeUsuario(postulacionId, usuarioId);
+    return EmailModel.listar({ usuarioId, postulacionId });
   },
 
   async actualizar(
+    usuarioId: number,
     id: number,
     input: ActualizarEmailInput,
   ): Promise<EmailRow> {
-    const actual = await this.obtenerPorId(id);
+    const actual = await this.obtenerPorId(usuarioId, id);
 
     if (
       input.postulacion_id !== undefined &&
       input.postulacion_id !== actual.postulacion_id &&
       input.postulacion_id !== null
     ) {
-      const postulacion = await PostulacionModel.obtenerPorId(
-        input.postulacion_id,
-      );
-      if (!postulacion) {
-        throw new NotFoundError(
-          `Postulación ${input.postulacion_id} no encontrada`,
-        );
-      }
+      await postulacionDeUsuario(input.postulacion_id, usuarioId);
     }
 
-    const actualizado = await EmailModel.actualizar(id, input);
+    const actualizado = await EmailModel.actualizar(id, usuarioId, input);
     if (!actualizado) {
       throw new NotFoundError(`Email ${id} no encontrado`);
     }
@@ -318,13 +310,8 @@ export const EmailService = {
 
     const postulacion =
       postulacionId !== null
-        ? await PostulacionModel.obtenerPorId(postulacionId)
+        ? await postulacionDeUsuario(postulacionId, usuarioId)
         : null;
-    if (postulacionId !== null && !postulacion) {
-      throw new NotFoundError(
-        `Postulación ${postulacionId} no encontrada`,
-      );
-    }
 
     const usuario = await UsuarioModel.obtenerPorId(usuarioId);
     if (!usuario) {
@@ -385,7 +372,7 @@ export const EmailService = {
     });
 
     const fechaEnvio = new Date().toISOString();
-    const email = await EmailModel.crear({
+    const email = await EmailModel.crear(usuarioId, {
       postulacion_id: postulacionId,
       gmail_message_id: enviado.gmailMessageId,
       tipo: input.tipo,
@@ -399,7 +386,7 @@ export const EmailService = {
       cuerpo_html: html,
     });
 
-    await AgendaService.agendarDesdeCorreo(input.destinatario);
+    await AgendaService.agendarDesdeCorreo(usuarioId, input.destinatario);
 
     if (postulacionId !== null && postulacion) {
       const empresa =
@@ -416,7 +403,7 @@ export const EmailService = {
       );
 
       if (input.crear_seguimiento === true) {
-        await SeguimientoModel.crear({
+        await SeguimientoModel.crear(usuarioId, {
           postulacion_id: postulacionId,
           fecha_programada: input.fecha_programada ?? hoyDia(),
           tipo_seguimiento: tipoSeguimiento ?? 'consulta',
@@ -429,12 +416,12 @@ export const EmailService = {
     return email;
   },
 
-  async eliminar(id: number): Promise<void> {
-    const email = await this.obtenerPorId(id);
+  async eliminar(usuarioId: number, id: number): Promise<void> {
+    const email = await this.obtenerPorId(usuarioId, id);
     if (email.enviado === 1 && email.postulacion_id !== null) {
       await PostulacionModel.decrementarMails(email.postulacion_id);
     }
-    const eliminado = await EmailModel.eliminar(id);
+    const eliminado = await EmailModel.eliminar(id, usuarioId);
     if (!eliminado) {
       throw new NotFoundError(`Email ${id} no encontrado`);
     }

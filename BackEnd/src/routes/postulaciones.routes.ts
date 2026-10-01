@@ -6,6 +6,7 @@ import {
   validateParams,
   validateQuery,
 } from '../middlewares/validation.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import { idParams } from '../schemas/common';
 import {
   asignarContactoSchema,
@@ -19,6 +20,9 @@ import {
 } from '../schemas/postulacion';
 
 export const postulacionesRouter = Router();
+
+// Defensa en profundidad: no depende solo del montaje en app.ts
+postulacionesRouter.use(authMiddleware);
 
 postulacionesRouter.get(
   '/',

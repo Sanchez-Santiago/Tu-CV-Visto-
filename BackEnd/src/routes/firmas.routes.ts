@@ -5,12 +5,16 @@ import {
   validateParams,
 } from '../middlewares/validation.middleware';
 import { idParams } from '../schemas/common';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import {
   actualizarFirmaSchema,
   crearFirmaMeSchema,
 } from '../schemas/firma';
 
 export const firmasRouter = Router();
+
+// Defensa en profundidad: no depende solo del montaje en app.ts
+firmasRouter.use(authMiddleware);
 
 firmasRouter.get('/', FirmaController.listar);
 firmasRouter.post(

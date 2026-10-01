@@ -78,7 +78,7 @@ export const SincronizacionService = {
         UsuarioModel.obtenerPorId(usuarioId),
         PostulacionModel.listar({ usuarioId }),
         EmailModel.listarResumenParaUsuario(usuarioId),
-        EmpresaModel.listar(),
+        EmpresaModel.listar(usuarioId),
       ]);
 
     const nombreEmpresa = new Map<number, string>();
@@ -123,9 +123,8 @@ export const SincronizacionService = {
     }
 
     const emailPropio = usuario?.email ?? '';
-
     const idsYaImportados = new Set<string>(
-      await EmailModel.listarGmailMessageIds(usuarioId, emailPropio),
+      await EmailModel.listarGmailMessageIds(usuarioId),
     );
 
     for (const mensaje of mensajes) {
@@ -201,7 +200,7 @@ export const SincronizacionService = {
         continue;
       }
 
-      await AgendaService.agendarDesdeCorreo(contraparte);
+      await AgendaService.agendarDesdeCorreo(usuarioId, contraparte);
 
       if (postulacionId === null) {
         resultado.sinMatch += 1;
@@ -228,7 +227,7 @@ export const SincronizacionService = {
           ['pendiente', 'en_proceso', 'entrevista'].includes(estadoAnterior) &&
           estadoAnterior !== objetivo
         ) {
-          await PostulacionModel.actualizar(postulacionId, {
+          await PostulacionModel.actualizar(postulacionId, usuarioId, {
             estado: objetivo,
             respondio: 1,
             ultimo_contacto: email.fecha.slice(0, 10),
@@ -237,7 +236,7 @@ export const SincronizacionService = {
           estadoPorPostulacion.set(postulacionId, objetivo);
           resultado.estados_actualizados += 1;
         } else if (tipoRespuesta === 'novedad' && estadoAnterior === 'pendiente') {
-          await PostulacionModel.actualizar(postulacionId, {
+          await PostulacionModel.actualizar(postulacionId, usuarioId, {
             estado: 'en_proceso',
             respondio: 1,
             ultimo_contacto: email.fecha.slice(0, 10),
@@ -248,7 +247,7 @@ export const SincronizacionService = {
         } else if (tipoRespuesta !== 'otro') {
           // El ruido ('otro': alertas, newsletters) no toca la postulación:
           // no cuenta como respuesta ni como contacto.
-          await PostulacionModel.actualizar(postulacionId, {
+          await PostulacionModel.actualizar(postulacionId, usuarioId, {
             respondio: 1,
             ultimo_contacto: email.fecha.slice(0, 10),
           });

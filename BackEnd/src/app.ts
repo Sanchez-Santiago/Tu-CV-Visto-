@@ -45,12 +45,32 @@ app.get('/health', asyncHandler(async (_req, res) => {
 app.use('/', docsRouter);
 
 app.use('/api/categorias', categoriasRouter);
-app.use('/api/empresas', empresasRouter);
-app.use('/api/contactos-rrhh', contactosRrhhRouter);
 app.use('/api/usuarios', usuariosRouter);
-app.use('/api/postulaciones', postulacionesRouter);
-app.use('/api/emails', emailsRouter);
-app.use('/api/seguimientos', seguimientosRouter);
+app.use(
+  '/api/empresas',
+  authMiddleware,
+  empresasRouter,
+);
+app.use(
+  '/api/contactos-rrhh',
+  authMiddleware,
+  contactosRrhhRouter,
+);
+app.use(
+  '/api/postulaciones',
+  authMiddleware,
+  postulacionesRouter,
+);
+app.use(
+  '/api/emails',
+  authMiddleware,
+  emailsRouter,
+);
+app.use(
+  '/api/seguimientos',
+  authMiddleware,
+  seguimientosRouter,
+);
 app.use('/api/experiencias', authMiddleware, experienciasRouter);
 app.use('/api/proyectos', authMiddleware, proyectosRouter);
 app.use('/api/firmas', authMiddleware, firmasRouter);

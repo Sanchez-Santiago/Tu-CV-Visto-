@@ -24,7 +24,9 @@ export const PlantillaService = {
     const postulacion = await PostulacionModel.obtenerPorId(
       input.postulacionId,
     );
-    if (!postulacion) {
+    // Sin este chequeo un usuario podía generar la plantilla de la postulación
+    // de otro y obtener su empresa, contactos, CV y firma.
+    if (!postulacion || postulacion.usuario_id !== input.usuarioId) {
       throw new NotFoundError(
         `Postulación ${input.postulacionId} no encontrada`,
       );

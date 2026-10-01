@@ -8,15 +8,14 @@ import type {
 } from '../schemas/postulacion';
 
 export interface FiltroPostulaciones {
+  usuarioId: number;
   estado?: EstadoPostulacion;
   interes?: Interes;
   modalidad?: Modalidad;
   empresaId?: number;
-  usuarioId?: number;
 }
 
 const CAMPOS_ACTUALIZABLES = {
-  usuario_id: 'usuario_id',
   empresa_id: 'empresa_id',
   puesto: 'puesto',
   modalidad: 'modalidad',
@@ -40,7 +39,10 @@ const COLUMNAS_SELECT = `
 `;
 
 export const PostulacionModel = {
-  async crear(input: CrearPostulacionInput): Promise<PostulacionRow> {
+  async crear(
+    usuarioId: number,
+    input: Omit<CrearPostulacionInput, 'usuario_id'>,
+  ): Promise<PostulacionRow> {
     const resultado = await db.execute({
       sql: `
         INSERT INTO postulaciones
@@ -50,7 +52,7 @@ export const PostulacionModel = {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
-        input.usuario_id,
+        usuarioId,
         input.empresa_id,
         input.puesto,
         input.modalidad ?? null,
@@ -72,9 +74,9 @@ export const PostulacionModel = {
     return creada;
   },
 
-  async listar(filtros: FiltroPostulaciones = {}): Promise<PostulacionRow[]> {
-    const condiciones: string[] = [];
-    const args: InValue[] = [];
+  async listar(filtros: FiltroPostulaciones): Promise<PostulacionRow[]> {
+    const condiciones: string[] = ['usuario_id = ?'];
+    const args: InValue[] = [filtros.usuarioId];
 
     if (filtros.estado) {
       condiciones.push('estado = ?');
@@ -92,17 +94,11 @@ export const PostulacionModel = {
       condiciones.push('empresa_id = ?');
       args.push(filtros.empresaId);
     }
-    if (filtros.usuarioId) {
-      condiciones.push('usuario_id = ?');
-      args.push(filtros.usuarioId);
-    }
-
-    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
     const resultado = await db.execute({
       sql: `
         ${COLUMNAS_SELECT}
-        ${where}
+        WHERE ${condiciones.join(' AND ')}
         ORDER BY COALESCE(fecha_postulacion, created_at) DESC, id DESC
       `,
       args,
@@ -120,6 +116,7 @@ export const PostulacionModel = {
 
   async actualizar(
     id: number,
+    usuarioId: number,
     input: ActualizarPostulacionInput,
   ): Promise<PostulacionRow | null> {
     const sets: string[] = [];
@@ -139,8 +136,8 @@ export const PostulacionModel = {
 
     sets.push('updated_at = CURRENT_TIMESTAMP');
     const resultado = await db.execute({
-      sql: `UPDATE postulaciones SET ${sets.join(', ')} WHERE id = ?`,
-      args: [...args, id],
+      sql: `UPDATE postulaciones SET ${sets.join(', ')} WHERE id = ? AND usuario_id = ?`,
+      args: [...args, id, usuarioId],
     });
 
     if (resultado.rowsAffected === 0) {
@@ -149,10 +146,10 @@ export const PostulacionModel = {
     return this.obtenerPorId(id);
   },
 
-  async eliminar(id: number): Promise<boolean> {
+  async eliminar(id: number, usuarioId: number): Promise<boolean> {
     const resultado = await db.execute({
-      sql: 'DELETE FROM postulaciones WHERE id = ?',
-      args: [id],
+      sql: 'DELETE FROM postulaciones WHERE id = ? AND usuario_id = ?',
+      args: [id, usuarioId],
     });
     return resultado.rowsAffected > 0;
   },

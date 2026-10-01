@@ -5,10 +5,6 @@ export const API_URL = `${API_BASE}/api`;
 // ─── Internal state ──────────────────────────────────────────
 let sesionUsuarioId: number | null = null;
 
-export function getSesionUsuarioId(): number | null {
-  return sesionUsuarioId;
-}
-
 export function setSesionUsuarioId(id: number | null): void {
   sesionUsuarioId = id;
 }

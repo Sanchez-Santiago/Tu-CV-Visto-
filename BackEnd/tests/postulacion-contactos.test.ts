@@ -1,14 +1,15 @@
-import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { db } from '../src/config/database';
 import { UsuarioModel } from '../src/models/usuario.model';
 import type { UsuarioRow } from '../src/types/models';
+import { api, headersDe } from './helpers/auth';
 import { resetTestDb } from './helpers/test-db';
 
 let usuario: UsuarioRow;
 let postulacionId: number;
 let contactoId: number;
+let auth: { Authorization: string };
 
 beforeAll(async () => {
   await resetTestDb(db);
@@ -17,12 +18,13 @@ beforeAll(async () => {
     nombre: 'Usuario Junción',
     email: 'juncion@test.com',
   });
+  auth = await headersDe(usuario.id, usuario.email);
 
-  const empresa = await request(app)
+  const empresa = await api(app, auth)
     .post('/api/empresas')
     .send({ nombre: 'Empresa Postulación' });
 
-  const contacto = await request(app)
+  const contacto = await api(app, auth)
     .post('/api/contactos-rrhh')
     .send({
       empresa_id: empresa.body.data.id,
@@ -47,7 +49,7 @@ afterAll(async () => {
 
 describe('postulacion_contactos — POST', () => {
   it('asigna un contacto RRHH a la postulación', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post(`/api/postulaciones/${postulacionId}/contactos`)
       .send({ contacto_rrhh_id: contactoId });
     expect(res.status).toBe(201);
@@ -55,21 +57,21 @@ describe('postulacion_contactos — POST', () => {
   });
 
   it('rechaza asignar dos veces el mismo contacto', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post(`/api/postulaciones/${postulacionId}/contactos`)
       .send({ contacto_rrhh_id: contactoId });
     expect(res.status).toBe(409);
   });
 
   it('responde 404 si la postulación no existe', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post('/api/postulaciones/999999/contactos')
       .send({ contacto_rrhh_id: contactoId });
     expect(res.status).toBe(404);
   });
 
   it('responde 404 si el contacto no existe', async () => {
-    const res = await request(app)
+    const res = await api(app, auth)
       .post(`/api/postulaciones/${postulacionId}/contactos`)
       .send({ contacto_rrhh_id: 999999 });
     expect(res.status).toBe(404);
@@ -78,7 +80,7 @@ describe('postulacion_contactos — POST', () => {
 
 describe('postulacion_contactos — GET', () => {
   it('lista los contactos de la postulación', async () => {
-    const res = await request(app).get(
+    const res = await api(app, auth).get(
       `/api/postulaciones/${postulacionId}/contactos`,
     );
     expect(res.status).toBe(200);
@@ -86,21 +88,21 @@ describe('postulacion_contactos — GET', () => {
   });
 
   it('responde 404 si la postulación no existe', async () => {
-    const res = await request(app).get('/api/postulaciones/999999/contactos');
+    const res = await api(app, auth).get('/api/postulaciones/999999/contactos');
     expect(res.status).toBe(404);
   });
 });
 
 describe('postulacion_contactos — DELETE', () => {
   it('quita un contacto asignado', async () => {
-    const res = await request(app).delete(
+    const res = await api(app, auth).delete(
       `/api/postulaciones/${postulacionId}/contactos/${contactoId}`,
     );
     expect(res.status).toBe(204);
   });
 
   it('responde 404 si el contacto no estaba asignado', async () => {
-    const res = await request(app).delete(
+    const res = await api(app, auth).delete(
       `/api/postulaciones/${postulacionId}/contactos/${contactoId}`,
     );
     expect(res.status).toBe(404);

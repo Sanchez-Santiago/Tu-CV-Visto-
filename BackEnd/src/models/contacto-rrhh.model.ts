@@ -15,13 +15,17 @@ const CAMPOS_ACTUALIZABLES = {
 } as const;
 
 export const ContactoRrhhModel = {
-  async crear(input: CrearContactoRrhhInput): Promise<ContactoRrhhRow> {
+  async crear(
+    usuarioId: number,
+    input: CrearContactoRrhhInput,
+  ): Promise<ContactoRrhhRow> {
     const resultado = await db.execute({
       sql: `
-        INSERT INTO contactos_rrhh (empresa_id, nombre, email, cargo, observaciones)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO contactos_rrhh (usuario_id, empresa_id, nombre, email, cargo, observaciones)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       args: [
+        usuarioId,
         input.empresa_id,
         input.nombre,
         input.email,
@@ -39,7 +43,7 @@ export const ContactoRrhhModel = {
   async obtenerPorId(id: number): Promise<ContactoRrhhRow | null> {
     const resultado = await db.execute({
       sql: `
-        SELECT id, empresa_id, nombre, email, cargo, observaciones,
+        SELECT id, usuario_id, empresa_id, nombre, email, cargo, observaciones,
                created_at, updated_at
         FROM contactos_rrhh
         WHERE id = ?
@@ -49,16 +53,16 @@ export const ContactoRrhhModel = {
     return (resultado.rows[0] as unknown as ContactoRrhhRow) ?? null;
   },
 
-  async listar(empresaId?: number): Promise<ContactoRrhhRow[]> {
-    const args: InValue[] = [];
-    const where =
-      empresaId !== undefined ? 'WHERE empresa_id = ?' : '';
+  async listar(usuarioId: number, empresaId?: number): Promise<ContactoRrhhRow[]> {
+    const args: InValue[] = [usuarioId];
+    let where = 'WHERE usuario_id = ?';
     if (empresaId !== undefined) {
+      where += ' AND empresa_id = ?';
       args.push(empresaId);
     }
     const resultado = await db.execute({
       sql: `
-        SELECT id, empresa_id, nombre, email, cargo, observaciones,
+        SELECT id, usuario_id, empresa_id, nombre, email, cargo, observaciones,
                created_at, updated_at
         FROM contactos_rrhh
         ${where}
@@ -70,13 +74,15 @@ export const ContactoRrhhModel = {
   },
 
   async listarPorEmpresa(
+    usuarioId: number,
     empresaId: number,
   ): Promise<ContactoRrhhRow[]> {
-    return this.listar(empresaId);
+    return this.listar(usuarioId, empresaId);
   },
 
   async actualizar(
     id: number,
+    usuarioId: number,
     input: ActualizarContactoRrhhInput,
   ): Promise<ContactoRrhhRow | null> {
     const sets: string[] = [];
@@ -91,30 +97,43 @@ export const ContactoRrhhModel = {
     }
 
     if (sets.length === 0) {
-      return this.obtenerPorId(id);
+      return this.obtenerPorIdDeUsuario(id, usuarioId);
     }
 
     sets.push('updated_at = CURRENT_TIMESTAMP');
     const resultado = await db.execute({
-      sql: `UPDATE contactos_rrhh SET ${sets.join(', ')} WHERE id = ?`,
-      args: [...args, id],
+      sql: `UPDATE contactos_rrhh SET ${sets.join(', ')} WHERE id = ? AND usuario_id = ?`,
+      args: [...args, id, usuarioId],
     });
 
     if (resultado.rowsAffected === 0) {
       return null;
     }
+    return this.obtenerPorIdDeUsuario(id, usuarioId);
+  },
+
+  async obtenerPorIdDeUsuario(
+    id: number,
+    usuarioId: number,
+  ): Promise<ContactoRrhhRow | null> {
+    const resultado = await db.execute({
+      sql: 'SELECT id FROM contactos_rrhh WHERE id = ? AND usuario_id = ?',
+      args: [id, usuarioId],
+    });
+    if (!resultado.rows[0]) return null;
     return this.obtenerPorId(id);
   },
 
-  async eliminar(id: number): Promise<boolean> {
+  async eliminar(id: number, usuarioId: number): Promise<boolean> {
     const resultado = await db.execute({
-      sql: 'DELETE FROM contactos_rrhh WHERE id = ?',
-      args: [id],
+      sql: 'DELETE FROM contactos_rrhh WHERE id = ? AND usuario_id = ?',
+      args: [id, usuarioId],
     });
     return resultado.rowsAffected > 0;
   },
 
   async existeEmailEnEmpresa(
+    usuarioId: number,
     email: string,
     empresaId: number,
     exceptoId?: number,
@@ -122,10 +141,11 @@ export const ContactoRrhhModel = {
     const resultado = await db.execute({
       sql: `
         SELECT id FROM contactos_rrhh
-        WHERE LOWER(email) = LOWER(?) AND empresa_id = ?
+        WHERE usuario_id = ?
+          AND LOWER(email) = LOWER(?) AND empresa_id = ?
           AND (? IS NULL OR id != ?)
       `,
-      args: [email, empresaId, exceptoId ?? null, exceptoId ?? null],
+      args: [usuarioId, email, empresaId, exceptoId ?? null, exceptoId ?? null],
     });
     return resultado.rows.length > 0;
   },
